@@ -106,47 +106,89 @@ detach_preview_pane() {
     done
 }
 
+ui_init() {
+    UI_RESET="$(tput sgr0)"
+    UI_BOLD="$(tput bold)"
+    UI_DIM="$(tput dim)"
+    UI_CYAN="$(tput setaf 6)"
+    UI_GREEN="$(tput setaf 2)"
+    UI_YELLOW="$(tput setaf 3)"
+    UI_RED="$(tput setaf 1)"
+    UI_BLUE="$(tput setaf 4)"
+}
+
+ui_rule() {
+    local char="${1:--}"
+    local width
+
+    width=$(tput cols 2>/dev/null || printf '80')
+    (( width > 72 )) && width=72
+    printf '%*s\n' "$width" '' | tr ' ' "$char"
+}
+
 render_menu() {
     local index=0
     local kind name windows status
-    local status_display
+    local status_display marker line_name line_windows
+
+    ui_init
 
     clear
-    printf 'tmux SSH Chooser\n'
-    printf 'Enter = öffnen | n = nur erstellen | Ctrl-R = umbenennen | Ctrl-X = beenden | q/ESC = normale Shell\n'
+    printf '%s%sTMUX SSH CHOOSER%s\n' "$UI_BOLD" "$UI_CYAN" "$UI_RESET"
+    ui_rule "─"
+    printf '%sEnter%s öffnen  %s•%s  %sn%s nur erstellen  %s•%s  %sCtrl-R%s umbenennen  %s•%s  %sCtrl-X%s beenden  %s•%s  %sq/ESC%s Shell\n' \
+        "$UI_BOLD" "$UI_RESET" \
+        "$UI_DIM" "$UI_RESET" \
+        "$UI_BOLD" "$UI_RESET" \
+        "$UI_DIM" "$UI_RESET" \
+        "$UI_BOLD" "$UI_RESET" \
+        "$UI_DIM" "$UI_RESET" \
+        "$UI_BOLD" "$UI_RESET" \
+        "$UI_DIM" "$UI_RESET" \
+        "$UI_BOLD" "$UI_RESET"
     printf '\n'
 
     while IFS=$'\t' read -r kind name windows status; do
-        if (( index == SELECTED_INDEX )); then
-            tput rev
-        fi
-
         if [[ "$kind" == "new" ]]; then
-            printf '  %s\n' "$name"
+            if (( index == SELECTED_INDEX )); then
+                printf '%s%s›%s  %s%s%s\n' "$UI_BOLD" "$UI_CYAN" "$UI_RESET" "$UI_BOLD" "$name" "$UI_RESET"
+            else
+                printf '   %s%s%s\n' "$UI_BLUE" "$name" "$UI_RESET"
+            fi
         else
             case "$status" in
                 attached)
-                    status_display="$(tput setaf 2)[$status]$(tput sgr0)"
+                    status_display="${UI_GREEN}[attached]${UI_RESET}"
                     ;;
                 detached)
-                    status_display="$(tput setaf 3)[$status]$(tput sgr0)"
+                    status_display="${UI_YELLOW}[detached]${UI_RESET}"
                     ;;
                 *)
                     status_display="[$status]"
                     ;;
             esac
-            printf '  %-24s  %3s Fenster  %s\n' "$name" "$windows" "$status_display"
-        fi
-
-        if (( index == SELECTED_INDEX )); then
-            tput sgr0
+            printf -v line_name '%-24s' "$name"
+            printf -v line_windows '%3s Fenster' "$windows"
+            if (( index == SELECTED_INDEX )); then
+                marker="${UI_BOLD}${UI_CYAN}›${UI_RESET}"
+                printf '%s  %s%s%s  %s%s%s  %s\n' \
+                    "$marker" \
+                    "$UI_BOLD" "$line_name" "$UI_RESET" \
+                    "$UI_DIM" "$line_windows" "$UI_RESET" \
+                    "$status_display"
+            else
+                printf '   %s  %s%s%s  %s\n' \
+                    "$line_name" \
+                    "$UI_DIM" "$line_windows" "$UI_RESET" \
+                    "$status_display"
+            fi
         fi
 
         index=$((index + 1))
     done < "$STATE_DIR/sessions"
 
     if [[ -n "${STATUS_MESSAGE:-}" ]]; then
-        printf '\n%s\n' "$STATUS_MESSAGE"
+        printf '\n%s%s%s\n' "$UI_DIM" "$STATUS_MESSAGE" "$UI_RESET"
     fi
 }
 
@@ -416,16 +458,18 @@ menu_mode() {
 }
 
 preview_placeholder_mode() {
+    ui_init
     clear
-    printf '[Neue Session erstellen]\n'
+    printf '%s%sNEUE SESSION%s\n' "$UI_BOLD" "$UI_BLUE" "$UI_RESET"
+    ui_rule "─"
     printf '\n'
-    printf 'Enter: neue Session anlegen und direkt öffnen\n'
-    printf 'n: neue Session nur anlegen und im Chooser bleiben\n'
-    printf 'Default-Name: main\n'
+    printf '%sEnter%s  neue Session anlegen und direkt öffnen\n' "$UI_BOLD" "$UI_RESET"
+    printf '%sn%s      neue Session nur anlegen und im Chooser bleiben\n' "$UI_BOLD" "$UI_RESET"
+    printf '%sDefault%s  main\n' "$UI_BOLD" "$UI_RESET"
     printf '\n'
-    printf 'Ctrl-R: markierte Session umbenennen\n'
-    printf 'Ctrl-X: markierte Session beenden\n'
-    printf 'q oder ESC: zurück zur normalen Shell\n'
+    printf '%sCtrl-R%s   markierte Session umbenennen\n' "$UI_BOLD" "$UI_RESET"
+    printf '%sCtrl-X%s   markierte Session beenden\n' "$UI_BOLD" "$UI_RESET"
+    printf '%sq / ESC%s  zurück zur normalen Shell\n' "$UI_BOLD" "$UI_RESET"
 
     while :; do
         sleep 3600

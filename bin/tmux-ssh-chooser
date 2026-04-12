@@ -101,25 +101,28 @@ disable_raw_mode() {
     tput cnorm
 }
 
-drain_input() {
-    local dummy
+popup_prompt_line() {
+    local title="$1"
+    local prompt="$2"
+    local initial="${3:-}"
+    local result_file
 
-    while IFS= read -rsn1 -t 0.001 dummy < /dev/tty; do
-        :
-    done
-}
+    result_file="$STATE_DIR/prompt_result"
+    rm -f "$result_file"
 
-prompt_line() {
-    local prompt="$1"
-    local value
+    tmux display-popup -E \
+        -w 70% \
+        -h 20% \
+        -T "$title" \
+        -e PROMPT_TEXT="$prompt" \
+        -e PROMPT_INITIAL="$initial" \
+        -e PROMPT_RESULT_FILE="$result_file" \
+        "/bin/bash -lc 'read -e -i \"\$PROMPT_INITIAL\" -p \"\$PROMPT_TEXT\" value; printf \"%s\" \"\$value\" > \"\$PROMPT_RESULT_FILE\"'"
 
-    disable_raw_mode
-    drain_input
-    printf '\r\033[K%s' "$prompt" > /dev/tty
-    IFS= read -r value < /dev/tty
-    printf '\n' > /dev/tty
-    enable_raw_mode
-    printf '%s' "$value"
+    if [[ -f "$result_file" ]]; then
+        cat "$result_file"
+        rm -f "$result_file"
+    fi
 }
 
 session_exists() {
@@ -151,7 +154,7 @@ rename_selected_session() {
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
     [[ "$kind" == "session" ]] || return
 
-    new_name=$(prompt_line "Neuer Name für Session [$name]: ")
+    new_name=$(popup_prompt_line "Session umbenennen" "Neuer Name: " "$name")
     new_name=${new_name:-$name}
 
     if [[ "$new_name" == "$name" ]]; then
@@ -184,7 +187,7 @@ handle_enter() {
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
 
     if [[ "$kind" == "new" ]]; then
-        new_name=$(prompt_line 'Neuer Session-Name [main]: ')
+        new_name=$(popup_prompt_line "Neue Session" "Neuer Session-Name: " "main")
         new_name=${new_name:-main}
         create_or_open_session "$new_name"
     else

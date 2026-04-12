@@ -128,24 +128,36 @@ ui_rule() {
 
 render_menu() {
     local index=0
-    local kind name windows status
+    local kind name windows status selected_kind
     local status_display marker line_name line_windows
 
     ui_init
+    IFS=$'\t' read -r selected_kind _ <<< "$(selected_line)"
 
     clear
     printf '%s%sTMUX SSH CHOOSER%s\n' "$UI_BOLD" "$UI_CYAN" "$UI_RESET"
     ui_rule "─"
-    printf '%sEnter%s öffnen  %s•%s  %sn%s nur erstellen  %s•%s  %sCtrl-R%s umbenennen  %s•%s  %sCtrl-X%s beenden  %s•%s  %sq/ESC%s Shell\n' \
-        "$UI_BOLD" "$UI_RESET" \
-        "$UI_DIM" "$UI_RESET" \
-        "$UI_BOLD" "$UI_RESET" \
-        "$UI_DIM" "$UI_RESET" \
-        "$UI_BOLD" "$UI_RESET" \
-        "$UI_DIM" "$UI_RESET" \
-        "$UI_BOLD" "$UI_RESET" \
-        "$UI_DIM" "$UI_RESET" \
-        "$UI_BOLD" "$UI_RESET"
+    if [[ "$selected_kind" == "new" ]]; then
+        printf '%sEnter%s öffnen  %s•%s  %sn%s nur erstellen  %s•%s  %sCtrl-R%s umbenennen  %s•%s  %sCtrl-X%s beenden  %s•%s  %sq/ESC%s Shell\n' \
+            "$UI_BOLD" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET"
+    else
+        printf '%sEnter%s öffnen  %s•%s  %sCtrl-R%s umbenennen  %s•%s  %sCtrl-X%s beenden  %s•%s  %sq/ESC%s Shell\n' \
+            "$UI_BOLD" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET"
+    fi
     printf '\n'
 
     while IFS=$'\t' read -r kind name windows status; do

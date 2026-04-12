@@ -94,7 +94,7 @@ render_menu() {
 
     clear
     printf 'tmux SSH Chooser\n'
-    printf 'Enter = öffnen | Ctrl-R = umbenennen | Ctrl-X = beenden | q/ESC = normale Shell\n'
+    printf 'Enter = öffnen | n = nur erstellen | Ctrl-R = umbenennen | Ctrl-X = beenden | q/ESC = normale Shell\n'
     printf '\n'
 
     while IFS=$'\t' read -r kind name windows status; do
@@ -220,6 +220,18 @@ create_or_open_session() {
     fi
 }
 
+create_session_only() {
+    local target="$1"
+
+    if session_exists "$target"; then
+        STATUS_MESSAGE="Session \"$target\" existiert bereits."
+        return
+    fi
+
+    tmux new-session -d -s "$target" >/dev/null 2>&1
+    STATUS_MESSAGE="Session \"$target\" erstellt."
+}
+
 rename_selected_session() {
     local kind name windows status new_name
 
@@ -273,6 +285,17 @@ handle_enter() {
     fi
 }
 
+handle_create_only() {
+    local kind name windows status new_name
+
+    IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
+    [[ "$kind" == "new" ]] || return
+
+    new_name=$(popup_prompt_line "Neue Session" "Neuer Session-Name: " "main")
+    new_name=${new_name:-main}
+    create_session_only "$new_name"
+}
+
 menu_mode() {
     local key count current_target last_target
 
@@ -318,6 +341,18 @@ menu_mode() {
             ''|$'\n'|$'\r')
                 handle_enter
                 ;;
+            n|N)
+                handle_create_only
+                write_sessions
+                count=$(item_count)
+                if (( SELECTED_INDEX >= count )); then
+                    SELECTED_INDEX=$((count - 1))
+                fi
+                write_selected_target
+                current_target=$(selected_target)
+                update_preview_pane "$current_target"
+                last_target="$current_target"
+                ;;
             q|Q)
                 tmux detach-client -s "$CHOOSER_SESSION" >/dev/null 2>&1
                 exit 0
@@ -354,7 +389,8 @@ preview_placeholder_mode() {
     clear
     printf '[Neue Session erstellen]\n'
     printf '\n'
-    printf 'Enter: neue Session anlegen oder bestehende öffnen\n'
+    printf 'Enter: neue Session anlegen und direkt öffnen\n'
+    printf 'n: neue Session nur anlegen und im Chooser bleiben\n'
     printf 'Default-Name: main\n'
     printf '\n'
     printf 'Ctrl-R: markierte Session umbenennen\n'

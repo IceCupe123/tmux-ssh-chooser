@@ -105,7 +105,7 @@ render_menu() {
         if [[ "$kind" == "new" ]]; then
             printf '  %s\n' "$name"
         else
-            printf '  %-24s  %3s Fenster  %s\n' "$name" "$windows" "$status"
+            printf '  %-24s  %3s Fenster  [%s]\n' "$name" "$windows" "$status"
         fi
 
         if (( index == SELECTED_INDEX )); then

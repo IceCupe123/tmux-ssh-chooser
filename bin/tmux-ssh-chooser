@@ -370,7 +370,7 @@ preview_session_mode() {
     local target="$1"
 
     unset TMUX
-    exec tmux attach-session -t "=$target"
+    exec tmux attach-session -r -t "=$target"
 }
 
 main_mode() {

@@ -72,6 +72,21 @@ update_preview_pane() {
     tmux select-pane -t "$CHOOSER_SESSION":chooser.0 >/dev/null 2>&1
 }
 
+detach_preview_pane() {
+    local current_command tries=0
+
+    update_preview_pane "__new__"
+
+    while (( tries < 20 )); do
+        current_command=$(tmux display-message -p -t "$CHOOSER_SESSION":chooser.1 '#{pane_current_command}' 2>/dev/null || printf '')
+        if [[ "$current_command" != "tmux" ]]; then
+            break
+        fi
+        sleep 0.05
+        tries=$((tries + 1))
+    done
+}
+
 render_menu() {
     local index=0
     local kind name windows status
@@ -238,7 +253,7 @@ kill_selected_session() {
         return
     fi
 
-    update_preview_pane "__new__"
+    detach_preview_pane
     tmux kill-session -t "=$name"
     STATUS_MESSAGE=
 }

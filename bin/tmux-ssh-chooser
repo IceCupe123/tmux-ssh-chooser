@@ -2,12 +2,13 @@
 
 set -u
 
-CHOOSER_SESSION="__ssh_chooser"
+CHOOSER_PREFIX="__ssh_chooser"
+CHOOSER_SESSION="${TMUX_SSH_CHOOSER_SESSION:-$CHOOSER_PREFIX}"
 
 list_sessions() {
     printf 'new\t[Neue Session erstellen]\t\t\n'
     tmux list-sessions -F $'session\t#{session_name}\t#{session_windows}\t#{?session_attached,attached,detached}' 2>/dev/null |
-        awk -F'\t' -v chooser="$CHOOSER_SESSION" '$2 != chooser { print }'
+        awk -F'\t' -v chooser_prefix="$CHOOSER_PREFIX" 'index($2, chooser_prefix) != 1 { print }'
 }
 
 write_sessions() {
@@ -47,7 +48,7 @@ build_mode_command() {
     shift
     local part cmd=""
 
-    for part in /bin/bash "$0" "$mode" "$@"; do
+    for part in "TMUX_SSH_CHOOSER_SESSION=$CHOOSER_SESSION" /bin/bash "$0" "$mode" "$@"; do
         if [[ -n "$cmd" ]]; then
             cmd+=" "
         fi
@@ -377,6 +378,7 @@ main_mode() {
 
     STATE_DIR=$(mktemp -d /tmp/tmux-ssh-chooser.XXXXXX)
     script_path="$0"
+    CHOOSER_SESSION="${CHOOSER_PREFIX}_$$"
 
     tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
 
@@ -385,11 +387,11 @@ main_mode() {
     tmux set-option -t "$CHOOSER_SESSION" status off >/dev/null 2>&1
     tmux select-layout -t "$CHOOSER_SESSION":chooser even-horizontal >/dev/null 2>&1
     tmux select-pane -t "$CHOOSER_SESSION":chooser.0 >/dev/null 2>&1
-    tmux bind-key -n C-r if-shell -F '#{==:#{session_name},__ssh_chooser}' \
-        "send-keys -t __ssh_chooser:chooser.0 C-r" \
+    tmux bind-key -n C-r if-shell -F '#{m:^__ssh_chooser,#{session_name}}' \
+        "send-keys -t '#{session_name}:chooser.0' C-r" \
         "send-keys C-r"
-    tmux bind-key -n C-x if-shell -F '#{==:#{session_name},__ssh_chooser}' \
-        "send-keys -t __ssh_chooser:chooser.0 C-x" \
+    tmux bind-key -n C-x if-shell -F '#{m:^__ssh_chooser,#{session_name}}' \
+        "send-keys -t '#{session_name}:chooser.0' C-x" \
         "send-keys C-x"
 
     tmux attach-session -t "$CHOOSER_SESSION"

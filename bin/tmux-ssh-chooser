@@ -91,6 +91,7 @@ detach_preview_pane() {
 render_menu() {
     local index=0
     local kind name windows status
+    local status_display
 
     clear
     printf 'tmux SSH Chooser\n'
@@ -105,7 +106,18 @@ render_menu() {
         if [[ "$kind" == "new" ]]; then
             printf '  %s\n' "$name"
         else
-            printf '  %-24s  %3s Fenster  [%s]\n' "$name" "$windows" "$status"
+            case "$status" in
+                attached)
+                    status_display="$(tput setaf 2)[$status]$(tput sgr0)"
+                    ;;
+                detached)
+                    status_display="$(tput setaf 3)[$status]$(tput sgr0)"
+                    ;;
+                *)
+                    status_display="[$status]"
+                    ;;
+            esac
+            printf '  %-24s  %3s Fenster  %s\n' "$name" "$windows" "$status_display"
         fi
 
         if (( index == SELECTED_INDEX )); then

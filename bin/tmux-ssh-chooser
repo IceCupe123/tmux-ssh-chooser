@@ -101,13 +101,23 @@ disable_raw_mode() {
     tput cnorm
 }
 
+drain_input() {
+    local dummy
+
+    while IFS= read -rsn1 -t 0.001 dummy < /dev/tty; do
+        :
+    done
+}
+
 prompt_line() {
     local prompt="$1"
     local value
 
     disable_raw_mode
-    printf '\n%s' "$prompt"
-    IFS= read -r value
+    drain_input
+    printf '\r\033[K%s' "$prompt" > /dev/tty
+    IFS= read -r value < /dev/tty
+    printf '\n' > /dev/tty
     enable_raw_mode
     printf '%s' "$value"
 }

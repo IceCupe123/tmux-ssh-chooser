@@ -154,7 +154,7 @@ rename_selected_session() {
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
     [[ "$kind" == "session" ]] || return
 
-    new_name=$(popup_prompt_line "Session umbenennen" "Neuer Name: " "$name")
+    new_name=$(popup_prompt_line "Session umbenennen: $name" "Neuer Name: " "")
     new_name=${new_name:-$name}
 
     if [[ "$new_name" == "$name" ]]; then

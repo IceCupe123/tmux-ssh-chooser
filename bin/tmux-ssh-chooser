@@ -5,10 +5,28 @@ set -u
 CHOOSER_PREFIX="__ssh_chooser"
 CHOOSER_SESSION="${TMUX_SSH_CHOOSER_SESSION:-$CHOOSER_PREFIX}"
 
+session_display_status() {
+    local session_name="$1"
+
+    if tmux list-clients -t "=$session_name" -F '#{client_flags}' 2>/dev/null | \
+        awk '!/read-only/ || !/ignore-size/ { found=1 } END { exit(found ? 0 : 1) }'
+    then
+        printf 'attached'
+    else
+        printf 'detached'
+    fi
+}
+
 list_sessions() {
+    local name windows status
+
     printf 'new\t[Neue Session erstellen]\t\t\n'
-    tmux list-sessions -F $'session\t#{session_name}\t#{session_windows}\t#{?session_attached,attached,detached}' 2>/dev/null |
-        awk -F'\t' -v chooser_prefix="$CHOOSER_PREFIX" 'index($2, chooser_prefix) != 1 { print }'
+
+    while IFS=$'\t' read -r name windows; do
+        [[ "$name" == "$CHOOSER_PREFIX"* ]] && continue
+        status=$(session_display_status "$name")
+        printf 'session\t%s\t%s\t%s\n' "$name" "$windows" "$status"
+    done < <(tmux list-sessions -F $'#{session_name}\t#{session_windows}' 2>/dev/null)
 }
 
 write_sessions() {

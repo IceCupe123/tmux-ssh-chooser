@@ -126,13 +126,13 @@ popup_prompt_line() {
 }
 
 session_exists() {
-    tmux has-session -t "$1" 2>/dev/null
+    tmux has-session -t "=$1" 2>/dev/null
 }
 
 switch_to_session() {
     local target="$1"
 
-    tmux switch-client -t "$target"
+    tmux switch-client -t "=$target"
     tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
     exit 0
 }
@@ -167,7 +167,7 @@ rename_selected_session() {
         return
     fi
 
-    tmux rename-session -t "$name" "$new_name"
+    tmux rename-session -t "=$name" "$new_name"
     STATUS_MESSAGE=
 }
 
@@ -177,7 +177,7 @@ kill_selected_session() {
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
     [[ "$kind" == "session" ]] || return
 
-    tmux kill-session -t "$name"
+    tmux kill-session -t "=$name"
     STATUS_MESSAGE=
 }
 

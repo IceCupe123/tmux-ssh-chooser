@@ -155,6 +155,32 @@ popup_prompt_line() {
     fi
 }
 
+popup_confirm() {
+    local title="$1"
+    local prompt="$2"
+    local result_file answer
+
+    result_file="$STATE_DIR/confirm_result"
+    rm -f "$result_file"
+
+    tmux display-popup -E \
+        -w 70% \
+        -h 20% \
+        -T "$title" \
+        -e CONFIRM_TEXT="$prompt" \
+        -e CONFIRM_RESULT_FILE="$result_file" \
+        "/bin/bash -lc 'printf \"%s [y/N] \" \"\$CONFIRM_TEXT\"; read -r answer; printf \"%s\" \"\$answer\" > \"\$CONFIRM_RESULT_FILE\"'"
+
+    if [[ -f "$result_file" ]]; then
+        answer=$(cat "$result_file")
+        rm -f "$result_file"
+        [[ "$answer" == "y" || "$answer" == "Y" || "$answer" == "yes" || "$answer" == "YES" ]]
+        return
+    fi
+
+    return 1
+}
+
 session_exists() {
     tmux has-session -t "=$1" 2>/dev/null
 }
@@ -206,6 +232,11 @@ kill_selected_session() {
 
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
     [[ "$kind" == "session" ]] || return
+
+    if ! popup_confirm "Session schließen" "Wirklich Session \"$name\" schließen?"; then
+        STATUS_MESSAGE=
+        return
+    fi
 
     tmux kill-session -t "=$name"
     STATUS_MESSAGE=

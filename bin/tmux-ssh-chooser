@@ -1,0 +1,337 @@
+#!/usr/bin/env bash
+
+set -u
+
+CHOOSER_SESSION="__ssh_chooser"
+
+list_sessions() {
+    printf 'new\t[Neue Session erstellen]\t\t\n'
+    tmux list-sessions -F $'session\t#{session_name}\t#{session_windows}\t#{?session_attached,attached,detached}' 2>/dev/null |
+        awk -F'\t' -v chooser="$CHOOSER_SESSION" '$2 != chooser { print }'
+}
+
+write_sessions() {
+    list_sessions > "$STATE_DIR/sessions"
+}
+
+item_count() {
+    wc -l < "$STATE_DIR/sessions"
+}
+
+selected_line() {
+    sed -n "$((SELECTED_INDEX + 1))p" "$STATE_DIR/sessions"
+}
+
+write_selected_target() {
+    local kind name windows status
+
+    IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
+
+    if [[ "$kind" == "new" ]]; then
+        printf '__new__\n' > "$STATE_DIR/selected"
+    else
+        printf '%s\n' "$name" > "$STATE_DIR/selected"
+    fi
+}
+
+render_menu() {
+    local index=0
+    local kind name windows status
+
+    clear
+    printf 'tmux SSH Chooser\n'
+    printf 'Enter = öffnen | Ctrl-R = umbenennen | Ctrl-X = beenden | q/ESC = normale Shell\n'
+    printf '\n'
+
+    while IFS=$'\t' read -r kind name windows status; do
+        if (( index == SELECTED_INDEX )); then
+            tput rev
+        fi
+
+        if [[ "$kind" == "new" ]]; then
+            printf '  %s\n' "$name"
+        else
+            printf '  %-24s  %3s Fenster  %s\n' "$name" "$windows" "$status"
+        fi
+
+        if (( index == SELECTED_INDEX )); then
+            tput sgr0
+        fi
+
+        index=$((index + 1))
+    done < "$STATE_DIR/sessions"
+
+    if [[ -n "${STATUS_MESSAGE:-}" ]]; then
+        printf '\n%s\n' "$STATUS_MESSAGE"
+    fi
+}
+
+read_key() {
+    local key next
+
+    IFS= read -rsn1 key
+
+    if [[ "$key" == $'\x1b' ]]; then
+        if IFS= read -rsn1 -t 0.05 next; then
+            key+="$next"
+            if [[ "$next" == "[" ]] && IFS= read -rsn1 -t 0.05 next; then
+                key+="$next"
+            fi
+        fi
+    fi
+
+    printf '%s' "$key"
+}
+
+enable_raw_mode() {
+    stty -echo -icanon time 0 min 1
+    tput civis
+}
+
+disable_raw_mode() {
+    stty sane
+    tput cnorm
+}
+
+prompt_line() {
+    local prompt="$1"
+    local value
+
+    disable_raw_mode
+    printf '\n%s' "$prompt"
+    IFS= read -r value
+    enable_raw_mode
+    printf '%s' "$value"
+}
+
+session_exists() {
+    tmux has-session -t "$1" 2>/dev/null
+}
+
+switch_to_session() {
+    local target="$1"
+
+    tmux switch-client -t "$target"
+    tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
+    exit 0
+}
+
+create_or_open_session() {
+    local target="$1"
+
+    if session_exists "$target"; then
+        switch_to_session "$target"
+    else
+        tmux new-session -d -s "$target" >/dev/null 2>&1
+        switch_to_session "$target"
+    fi
+}
+
+rename_selected_session() {
+    local kind name windows status new_name
+
+    IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
+    [[ "$kind" == "session" ]] || return
+
+    new_name=$(prompt_line "Neuer Name für Session [$name]: ")
+    new_name=${new_name:-$name}
+
+    if [[ "$new_name" == "$name" ]]; then
+        STATUS_MESSAGE=
+        return
+    fi
+
+    if session_exists "$new_name"; then
+        STATUS_MESSAGE="Session \"$new_name\" existiert bereits."
+        return
+    fi
+
+    tmux rename-session -t "$name" "$new_name"
+    STATUS_MESSAGE=
+}
+
+kill_selected_session() {
+    local kind name windows status
+
+    IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
+    [[ "$kind" == "session" ]] || return
+
+    tmux kill-session -t "$name"
+    STATUS_MESSAGE=
+}
+
+handle_enter() {
+    local kind name windows status new_name
+
+    IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
+
+    if [[ "$kind" == "new" ]]; then
+        new_name=$(prompt_line 'Neuer Session-Name [main]: ')
+        new_name=${new_name:-main}
+        create_or_open_session "$new_name"
+    else
+        switch_to_session "$name"
+    fi
+}
+
+menu_mode() {
+    local key count
+
+    STATUS_MESSAGE=
+    SELECTED_INDEX=0
+
+    enable_raw_mode
+    trap 'disable_raw_mode' EXIT
+
+    while true; do
+        write_sessions
+        count=$(item_count)
+
+        if (( count <= 0 )); then
+            SELECTED_INDEX=0
+        elif (( SELECTED_INDEX >= count )); then
+            SELECTED_INDEX=$((count - 1))
+        fi
+
+        write_selected_target
+        render_menu
+
+        key=$(read_key)
+
+        case "$key" in
+            $'\x1b[A')
+                (( SELECTED_INDEX > 0 )) && SELECTED_INDEX=$((SELECTED_INDEX - 1))
+                ;;
+            $'\x1b[B')
+                (( SELECTED_INDEX + 1 < count )) && SELECTED_INDEX=$((SELECTED_INDEX + 1))
+                ;;
+            $'\x1b')
+                tmux detach-client -s "$CHOOSER_SESSION" >/dev/null 2>&1
+                exit 0
+                ;;
+            $'\n'|$'\r')
+                handle_enter
+                ;;
+            q|Q)
+                tmux detach-client -s "$CHOOSER_SESSION" >/dev/null 2>&1
+                exit 0
+                ;;
+            k|K)
+                (( SELECTED_INDEX > 0 )) && SELECTED_INDEX=$((SELECTED_INDEX - 1))
+                ;;
+            j|J)
+                (( SELECTED_INDEX + 1 < count )) && SELECTED_INDEX=$((SELECTED_INDEX + 1))
+                ;;
+            $'\x12')
+                rename_selected_session
+                ;;
+            $'\x18')
+                kill_selected_session
+                write_sessions
+                count=$(item_count)
+                if (( count == 1 )); then
+                    STATUS_MESSAGE='Keine Sessions vorhanden. Wähle "[Neue Session erstellen]".'
+                    SELECTED_INDEX=0
+                elif (( SELECTED_INDEX >= count )); then
+                    SELECTED_INDEX=$((count - 1))
+                fi
+                ;;
+        esac
+    done
+}
+
+build_preview_content() {
+    local target="$1"
+    local pane_info pane_id alternate_on session_name session_windows window_index window_name
+
+    if [[ -z "$target" || "$target" == '__new__' ]]; then
+        printf '%s\n' '[Neue Session erstellen]'
+        printf '\n'
+        printf '%s\n' 'Enter: neue Session anlegen oder bestehende öffnen'
+        printf '%s\n' 'Default-Name: main'
+        printf '\n'
+        printf '%s\n' 'Ctrl-R: markierte Session umbenennen'
+        printf '%s\n' 'Ctrl-X: markierte Session beenden'
+        printf '%s\n' 'q oder ESC: zurück zur normalen Shell'
+        return
+    fi
+
+    pane_info=$(tmux display-message -p -t "$target" "#{pane_id}\t#{alternate_on}\t#{session_name}\t#{session_windows}\t#{window_index}\t#{window_name}" 2>/dev/null) || {
+        printf '%s\n' 'Keine Vorschau verfügbar'
+        return
+    }
+
+    pane_id=$(printf '%s' "$pane_info" | cut -f1)
+    alternate_on=$(printf '%s' "$pane_info" | cut -f2)
+    session_name=$(printf '%s' "$pane_info" | cut -f3)
+    session_windows=$(printf '%s' "$pane_info" | cut -f4)
+    window_index=$(printf '%s' "$pane_info" | cut -f5)
+    window_name=$(printf '%s' "$pane_info" | cut -f6-)
+
+    printf 'Session: %s | Fenster: %s | Aktiv: %s:%s\n\n' \
+        "$session_name" "$session_windows" "$window_index" "$window_name"
+
+    if [[ "$alternate_on" == "1" ]]; then
+        tmux capture-pane -p -a -e -N -J -t "$pane_id" 2>/dev/null || printf '%s\n' 'Keine Vorschau verfügbar'
+    else
+        tmux capture-pane -p -e -N -J -t "$pane_id" -S -60 -E - 2>/dev/null || printf '%s\n' 'Keine Vorschau verfügbar'
+    fi
+}
+
+preview_mode() {
+    local target current_render last_render
+
+    while tmux has-session -t "$CHOOSER_SESSION" >/dev/null 2>&1; do
+        if [[ -f "$STATE_DIR/selected" ]]; then
+            target=$(<"$STATE_DIR/selected")
+        else
+            target='__new__'
+        fi
+
+        current_render=$(build_preview_content "$target")
+
+        if [[ "${last_render:-}" != "$current_render" ]]; then
+            tput cup 0 0
+            tput ed
+            printf '%s' "$current_render"
+            last_render="$current_render"
+        fi
+
+        sleep 0.15
+    done
+}
+
+main_mode() {
+    local script_path
+
+    STATE_DIR=$(mktemp -d /tmp/tmux-ssh-chooser.XXXXXX)
+    script_path="$0"
+
+    tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
+
+    tmux new-session -d -s "$CHOOSER_SESSION" -n chooser "/bin/bash '$script_path' __menu '$STATE_DIR'"
+    tmux split-window -h -l 60% -t "$CHOOSER_SESSION":chooser "/bin/bash '$script_path' __preview '$STATE_DIR'"
+    tmux set-option -t "$CHOOSER_SESSION" status off >/dev/null 2>&1
+    tmux select-layout -t "$CHOOSER_SESSION":chooser even-horizontal >/dev/null 2>&1
+
+    tmux attach-session -t "$CHOOSER_SESSION"
+
+    tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
+    rm -rf "$STATE_DIR"
+}
+
+MODE="${1:-__main}"
+
+case "$MODE" in
+    __menu)
+        STATE_DIR="$2"
+        menu_mode
+        ;;
+    __preview)
+        STATE_DIR="$2"
+        preview_mode
+        ;;
+    __main)
+        main_mode
+        ;;
+esac

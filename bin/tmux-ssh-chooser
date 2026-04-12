@@ -169,12 +169,12 @@ popup_confirm() {
         -T "$title" \
         -e CONFIRM_TEXT="$prompt" \
         -e CONFIRM_RESULT_FILE="$result_file" \
-        "/bin/bash -lc 'printf \"%s [y/N] \" \"\$CONFIRM_TEXT\"; read -r answer; printf \"%s\" \"\$answer\" > \"\$CONFIRM_RESULT_FILE\"'"
+        "/bin/bash -lc 'printf \"%s [j/n] \" \"\$CONFIRM_TEXT\"; IFS= read -rsn1 answer; printf \"%s\" \"\$answer\" > \"\$CONFIRM_RESULT_FILE\"; printf \"\n\"'"
 
     if [[ -f "$result_file" ]]; then
         answer=$(cat "$result_file")
         rm -f "$result_file"
-        [[ "$answer" == "y" || "$answer" == "Y" || "$answer" == "yes" || "$answer" == "YES" ]]
+        [[ "$answer" == "j" || "$answer" == "J" || "$answer" == "y" || "$answer" == "Y" ]]
         return
     fi
 
@@ -238,6 +238,7 @@ kill_selected_session() {
         return
     fi
 
+    update_preview_pane "__new__"
     tmux kill-session -t "=$name"
     STATUS_MESSAGE=
 }

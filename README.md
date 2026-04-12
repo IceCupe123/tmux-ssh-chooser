@@ -19,7 +19,7 @@ It opens automatically after SSH login, lets you pick an existing tmux session, 
 Run:
 
 ```bash
-curl -fsSL https://git.dotzip.de/IceCupe123/tmux-ssh-chooser/raw/branch/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/IceCupe123/tmux-ssh-chooser/refs/heads/main/install.sh | bash
 ```
 
 The installer will:
@@ -27,6 +27,7 @@ The installer will:
 - download `tmux-ssh-chooser` to `~/.local/bin/tmux-ssh-chooser`
 - make it executable
 - add or update the required hook in `~/.bashrc`
+- use GitHub as the default download source
 
 After installation, open a new SSH session or reload your shell with:
 

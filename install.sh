@@ -4,12 +4,11 @@ set -eu
 
 REPO_OWNER="${REPO_OWNER:-IceCupe123}"
 REPO_NAME="${REPO_NAME:-tmux-ssh-chooser}"
-REPO_HOST="${REPO_HOST:-git.dotzip.de}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 INSTALL_DIR="${HOME}/.local/bin"
 TARGET_BIN="${INSTALL_DIR}/tmux-ssh-chooser"
 BASHRC_FILE="${HOME}/.bashrc"
-RAW_BIN_URL="${RAW_BIN_URL:-https://${REPO_HOST}/${REPO_OWNER}/${REPO_NAME}/raw/branch/${REPO_BRANCH}/bin/tmux-ssh-chooser}"
+RAW_BIN_URL="${RAW_BIN_URL:-https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/bin/tmux-ssh-chooser}"
 BEGIN_MARKER="# >>> tmux-ssh-chooser >>>"
 END_MARKER="# <<< tmux-ssh-chooser <<<"
 

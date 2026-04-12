@@ -4,6 +4,325 @@ set -u
 
 CHOOSER_PREFIX="__ssh_chooser"
 CHOOSER_SESSION="${TMUX_SSH_CHOOSER_SESSION:-$CHOOSER_PREFIX}"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tmux-ssh-chooser"
+CONFIG_FILE="$CONFIG_DIR/config"
+CHOOSER_LANG="${TMUX_SSH_CHOOSER_LANG:-de}"
+MENU_CONTEXT="root"
+
+load_config() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        # shellcheck disable=SC1090
+        . "$CONFIG_FILE"
+    fi
+
+    case "${CHOOSER_LANG:-de}" in
+        de|en|ru) ;;
+        *) CHOOSER_LANG="de" ;;
+    esac
+}
+
+save_config() {
+    mkdir -p "$CONFIG_DIR"
+    printf 'CHOOSER_LANG=%q\n' "$CHOOSER_LANG" > "$CONFIG_FILE"
+}
+
+txt() {
+    local key="$1"
+
+    case "$CHOOSER_LANG:$key" in
+        de:menu_title) printf 'TMUX SSH CHOOSER' ;;
+        en:menu_title) printf 'TMUX SSH CHOOSER' ;;
+        ru:menu_title) printf 'TMUX SSH CHOOSER' ;;
+
+        de:entry_settings) printf '[Einstellungen]' ;;
+        en:entry_settings) printf '[Settings]' ;;
+        ru:entry_settings) printf '[Настройки]' ;;
+
+        de:entry_language) printf '[Sprache]' ;;
+        en:entry_language) printf '[Language]' ;;
+        ru:entry_language) printf '[Язык]' ;;
+
+        de:entry_lang_de) printf '[Deutsch]' ;;
+        en:entry_lang_de) printf '[German]' ;;
+        ru:entry_lang_de) printf '[Немецкий]' ;;
+
+        de:entry_lang_en) printf '[Englisch]' ;;
+        en:entry_lang_en) printf '[English]' ;;
+        ru:entry_lang_en) printf '[Английский]' ;;
+
+        de:entry_lang_ru) printf '[Russisch]' ;;
+        en:entry_lang_ru) printf '[Russian]' ;;
+        ru:entry_lang_ru) printf '[Русский]' ;;
+
+        de:entry_back) printf '[Zurueck]' ;;
+        en:entry_back) printf '[Back]' ;;
+        ru:entry_back) printf '[Назад]' ;;
+
+        de:entry_new) printf '[Neue Session erstellen]' ;;
+        en:entry_new) printf '[Create New Session]' ;;
+        ru:entry_new) printf '[Создать новую сессию]' ;;
+
+        de:open) printf 'oeffnen' ;;
+        en:open) printf 'open' ;;
+        ru:open) printf 'открыть' ;;
+
+        de:create_only) printf 'nur erstellen' ;;
+        en:create_only) printf 'create only' ;;
+        ru:create_only) printf 'только создать' ;;
+
+        de:rename) printf 'umbenennen' ;;
+        en:rename) printf 'rename' ;;
+        ru:rename) printf 'переименовать' ;;
+
+        de:close) printf 'beenden' ;;
+        en:close) printf 'close' ;;
+        ru:close) printf 'закрыть' ;;
+
+        de:shell) printf 'Shell' ;;
+        en:shell) printf 'shell' ;;
+        ru:shell) printf 'оболочка' ;;
+
+        de:status_attached) printf 'attached' ;;
+        en:status_attached) printf 'attached' ;;
+        ru:status_attached) printf 'attached' ;;
+
+        de:status_detached) printf 'detached' ;;
+        en:status_detached) printf 'detached' ;;
+        ru:status_detached) printf 'detached' ;;
+
+        de:windows) printf 'Fenster' ;;
+        en:windows) printf 'windows' ;;
+        ru:windows) printf 'окон' ;;
+
+        de:label_ok) printf 'OK' ;;
+        en:label_ok) printf 'OK' ;;
+        ru:label_ok) printf 'OK' ;;
+
+        de:label_note) printf 'HINWEIS' ;;
+        en:label_note) printf 'NOTE' ;;
+        ru:label_note) printf 'ПОДСКАЗКА' ;;
+
+        de:label_info) printf 'INFO' ;;
+        en:label_info) printf 'INFO' ;;
+        ru:label_info) printf 'ИНФО' ;;
+
+        de:settings_title) printf 'EINSTELLUNGEN' ;;
+        en:settings_title) printf 'SETTINGS' ;;
+        ru:settings_title) printf 'НАСТРОЙКИ' ;;
+
+        de:settings_menu_title) printf 'EINSTELLUNGEN / MENUE' ;;
+        en:settings_menu_title) printf 'SETTINGS / MENU' ;;
+        ru:settings_menu_title) printf 'НАСТРОЙКИ / МЕНЮ' ;;
+
+        de:language_menu_title) printf 'EINSTELLUNGEN / SPRACHE' ;;
+        en:language_menu_title) printf 'SETTINGS / LANGUAGE' ;;
+        ru:language_menu_title) printf 'НАСТРОЙКИ / ЯЗЫК' ;;
+
+        de:language) printf 'Sprache' ;;
+        en:language) printf 'Language' ;;
+        ru:language) printf 'Язык' ;;
+
+        de:settings_enter) printf 'Enter  Sprache aendern' ;;
+        en:settings_enter) printf 'Enter  change language' ;;
+        ru:settings_enter) printf 'Enter  сменить язык' ;;
+
+        de:settings_open) printf 'Einstellungen oeffnen' ;;
+        en:settings_open) printf 'open settings' ;;
+        ru:settings_open) printf 'открыть настройки' ;;
+
+        de:language_enter) printf 'Enter  Sprache auswaehlen' ;;
+        en:language_enter) printf 'Enter  choose language' ;;
+        ru:language_enter) printf 'Enter  выбрать язык' ;;
+
+        de:language_apply) printf 'Enter  Sprache setzen' ;;
+        en:language_apply) printf 'Enter  apply language' ;;
+        ru:language_apply) printf 'Enter  применить язык' ;;
+
+        de:back_action) printf 'zurueck' ;;
+        en:back_action) printf 'back' ;;
+        ru:back_action) printf 'назад' ;;
+
+        de:new_title) printf 'NEUE SESSION' ;;
+        en:new_title) printf 'NEW SESSION' ;;
+        ru:new_title) printf 'НОВАЯ СЕССИЯ' ;;
+
+        de:section_action) printf 'Aktion' ;;
+        en:section_action) printf 'Action' ;;
+        ru:section_action) printf 'Действие' ;;
+
+        de:section_sessions) printf 'Sessions' ;;
+        en:section_sessions) printf 'Sessions' ;;
+        ru:section_sessions) printf 'Сессии' ;;
+
+        de:section_default) printf 'Vorgabe' ;;
+        en:section_default) printf 'Default' ;;
+        ru:section_default) printf 'По умолчанию' ;;
+
+        de:label_default) printf 'Default' ;;
+        en:label_default) printf 'Default' ;;
+        ru:label_default) printf 'Стандарт' ;;
+
+        de:available) printf 'Verfuegbar' ;;
+        en:available) printf 'Available' ;;
+        ru:available) printf 'Доступно' ;;
+
+        de:section_keys) printf 'Weitere Tasten' ;;
+        en:section_keys) printf 'More Keys' ;;
+        ru:section_keys) printf 'Другие клавиши' ;;
+
+        de:new_enter_desc) printf 'neue Session anlegen und direkt oeffnen' ;;
+        en:new_enter_desc) printf 'create a new session and attach immediately' ;;
+        ru:new_enter_desc) printf 'создать новую сессию и сразу открыть' ;;
+
+        de:new_n_desc) printf 'neue Session nur anlegen und im Chooser bleiben' ;;
+        en:new_n_desc) printf 'create a new session and stay in chooser' ;;
+        ru:new_n_desc) printf 'создать новую сессию и остаться в выборе' ;;
+
+        de:default_main) printf 'main' ;;
+        en:default_main) printf 'main' ;;
+        ru:default_main) printf 'main' ;;
+
+        de:rename_desc) printf 'markierte Session umbenennen' ;;
+        en:rename_desc) printf 'rename selected session' ;;
+        ru:rename_desc) printf 'переименовать выбранную сессию' ;;
+
+        de:close_desc) printf 'markierte Session beenden' ;;
+        en:close_desc) printf 'close selected session' ;;
+        ru:close_desc) printf 'закрыть выбранную сессию' ;;
+
+        de:shell_desc) printf 'zurueck zur normalen Shell' ;;
+        en:shell_desc) printf 'return to normal shell' ;;
+        ru:shell_desc) printf 'вернуться в обычную оболочку' ;;
+
+        de:prompt_new_title) printf 'Neue Session' ;;
+        en:prompt_new_title) printf 'New Session' ;;
+        ru:prompt_new_title) printf 'Новая сессия' ;;
+
+        de:prompt_new_name) printf 'Neuer Session-Name: ' ;;
+        en:prompt_new_name) printf 'New session name: ' ;;
+        ru:prompt_new_name) printf 'Новое имя сессии: ' ;;
+
+        de:prompt_rename_name) printf 'Neuer Name: ' ;;
+        en:prompt_rename_name) printf 'New name: ' ;;
+        ru:prompt_rename_name) printf 'Новое имя: ' ;;
+
+        de:confirm_close_title) printf 'Session schliessen' ;;
+        en:confirm_close_title) printf 'Close session' ;;
+        ru:confirm_close_title) printf 'Закрыть сессию' ;;
+
+        de:select_language_title) printf 'Sprache waehlen' ;;
+        en:select_language_title) printf 'Choose language' ;;
+        ru:select_language_title) printf 'Выбор языка' ;;
+
+        de:lang_current) printf 'Aktuell' ;;
+        en:lang_current) printf 'Current' ;;
+        ru:lang_current) printf 'Текущий' ;;
+
+        de:lang_name_de) printf 'Deutsch' ;;
+        en:lang_name_de) printf 'German' ;;
+        ru:lang_name_de) printf 'Немецкий' ;;
+
+        de:lang_name_en) printf 'Englisch' ;;
+        en:lang_name_en) printf 'English' ;;
+        ru:lang_name_en) printf 'Английский' ;;
+
+        de:lang_name_ru) printf 'Russisch' ;;
+        en:lang_name_ru) printf 'Russian' ;;
+        ru:lang_name_ru) printf 'Русский' ;;
+
+        de:lang_prompt) printf 'd=Deutsch  e=English  r=Russkiy  q=Abbrechen' ;;
+        en:lang_prompt) printf 'd=Deutsch  e=English  r=Russian  q=Cancel' ;;
+        ru:lang_prompt) printf 'd=Немецкий  e=Английский  r=Русский  q=Отмена' ;;
+
+        de:settings_desc) printf 'Sprache des Choosers aendern' ;;
+        en:settings_desc) printf 'change chooser language' ;;
+        ru:settings_desc) printf 'изменить язык интерфейса' ;;
+
+        de:settings_menu_desc) printf 'Unterpunkte der Einstellungen oeffnen' ;;
+        en:settings_menu_desc) printf 'open settings sections' ;;
+        ru:settings_menu_desc) printf 'открыть разделы настроек' ;;
+
+        de:back_desc) printf 'zurueck zur Session-Uebersicht' ;;
+        en:back_desc) printf 'return to session list' ;;
+        ru:back_desc) printf 'вернуться к списку сессий' ;;
+
+        de:back_settings_desc) printf 'zurueck zu den Einstellungen' ;;
+        en:back_settings_desc) printf 'return to settings' ;;
+        ru:back_settings_desc) printf 'вернуться к настройкам' ;;
+
+        de:language_saved) printf 'Sprache gespeichert.' ;;
+        en:language_saved) printf 'Language saved.' ;;
+        ru:language_saved) printf 'Язык сохранён.' ;;
+
+        de:created_word) printf 'erstellt' ;;
+        en:created_word) printf 'created' ;;
+        ru:created_word) printf 'создана' ;;
+
+        de:exists_word) printf 'existiert bereits' ;;
+        en:exists_word) printf 'already exists' ;;
+        ru:exists_word) printf 'уже существует' ;;
+
+        de:no_sessions_prefix) printf 'Keine Sessions vorhanden. Waehle' ;;
+        en:no_sessions_prefix) printf 'No sessions available. Choose' ;;
+        ru:no_sessions_prefix) printf 'Сессий нет. Выберите' ;;
+
+        de:really_close_prefix) printf 'Wirklich Session' ;;
+        en:really_close_prefix) printf 'Really close session' ;;
+        ru:really_close_prefix) printf 'Действительно закрыть сессию' ;;
+
+        de:really_close_suffix) printf 'schliessen' ;;
+        en:really_close_suffix) printf 'now' ;;
+        ru:really_close_suffix) printf 'сейчас' ;;
+
+        de:rename_title_prefix) printf 'Session umbenennen' ;;
+        en:rename_title_prefix) printf 'Rename session' ;;
+        ru:rename_title_prefix) printf 'Переименовать сессию' ;;
+        *) printf '%s' "$key" ;;
+    esac
+}
+
+status_created() { printf 'Session "%s" %s.' "$1" "$(txt created_word)"; }
+status_exists() { printf 'Session "%s" %s.' "$1" "$(txt exists_word)"; }
+status_no_sessions() { printf '%s "%s".' "$(txt no_sessions_prefix)" "$(txt entry_new)"; }
+confirm_close_text() { printf '%s "%s" %s?' "$(txt really_close_prefix)" "$1" "$(txt really_close_suffix)"; }
+rename_title() { printf '%s: %s' "$(txt rename_title_prefix)" "$1"; }
+language_display() { printf '%s' "$CHOOSER_LANG"; }
+
+read_menu_context() {
+    if [[ -f "$STATE_DIR/context" ]]; then
+        MENU_CONTEXT=$(<"$STATE_DIR/context")
+    else
+        MENU_CONTEXT="root"
+    fi
+}
+
+write_menu_context() {
+    printf '%s\n' "$MENU_CONTEXT" > "$STATE_DIR/context"
+}
+
+enter_settings_menu() {
+    MENU_CONTEXT="settings"
+    SELECTED_INDEX=0
+    write_menu_context
+}
+
+enter_language_menu() {
+    MENU_CONTEXT="language"
+    SELECTED_INDEX=0
+    write_menu_context
+}
+
+leave_settings_menu() {
+    MENU_CONTEXT="root"
+    SELECTED_INDEX=1
+    write_menu_context
+}
+
+leave_language_menu() {
+    MENU_CONTEXT="settings"
+    SELECTED_INDEX=0
+    write_menu_context
+}
 
 session_display_status() {
     local session_name="$1"
@@ -17,10 +336,27 @@ session_display_status() {
     fi
 }
 
-list_sessions() {
+list_items() {
     local name windows status
 
-    printf 'new\t[Neue Session erstellen]\t\t\n'
+    read_menu_context
+
+    if [[ "$MENU_CONTEXT" == "language" ]]; then
+        printf 'lang_de\t%s\t\t\n' "$(txt entry_lang_de)"
+        printf 'lang_en\t%s\t\t\n' "$(txt entry_lang_en)"
+        printf 'lang_ru\t%s\t\t\n' "$(txt entry_lang_ru)"
+        printf 'back_settings\t%s\t\t\n' "$(txt entry_back)"
+        return
+    fi
+
+    if [[ "$MENU_CONTEXT" == "settings" ]]; then
+        printf 'language\t%s\t\t\n' "$(txt entry_language)"
+        printf 'back\t%s\t\t\n' "$(txt entry_back)"
+        return
+    fi
+
+    printf 'settings\t%s\t\t\n' "$(txt entry_settings)"
+    printf 'new\t%s\t\t\n' "$(txt entry_new)"
 
     while IFS=$'\t' read -r name windows; do
         [[ "$name" == "$CHOOSER_PREFIX"* ]] && continue
@@ -29,8 +365,8 @@ list_sessions() {
     done < <(tmux list-sessions -F $'#{session_name}\t#{session_windows}' 2>/dev/null)
 }
 
-write_sessions() {
-    list_sessions > "$STATE_DIR/sessions"
+write_items() {
+    list_items > "$STATE_DIR/sessions"
 }
 
 item_count() {
@@ -48,6 +384,20 @@ write_selected_target() {
 
     if [[ "$kind" == "new" ]]; then
         printf '__new__\n' > "$STATE_DIR/selected"
+    elif [[ "$kind" == "settings" ]]; then
+        printf '__settings__\n' > "$STATE_DIR/selected"
+    elif [[ "$kind" == "language" ]]; then
+        printf '__language__\n' > "$STATE_DIR/selected"
+    elif [[ "$kind" == "lang_de" ]]; then
+        printf '__lang_de__\n' > "$STATE_DIR/selected"
+    elif [[ "$kind" == "lang_en" ]]; then
+        printf '__lang_en__\n' > "$STATE_DIR/selected"
+    elif [[ "$kind" == "lang_ru" ]]; then
+        printf '__lang_ru__\n' > "$STATE_DIR/selected"
+    elif [[ "$kind" == "back" ]]; then
+        printf '__back__\n' > "$STATE_DIR/selected"
+    elif [[ "$kind" == "back_settings" ]]; then
+        printf '__back_settings__\n' > "$STATE_DIR/selected"
     else
         printf '%s\n' "$name" > "$STATE_DIR/selected"
     fi
@@ -81,7 +431,21 @@ update_preview_pane() {
     local target="$1"
     local command
 
-    if [[ -z "$target" || "$target" == '__new__' ]]; then
+    if [[ "$target" == '__settings__' ]]; then
+        command=$(build_mode_command __preview_settings "$STATE_DIR")
+    elif [[ "$target" == '__language__' ]]; then
+        command=$(build_mode_command __preview_language "$STATE_DIR")
+    elif [[ "$target" == '__lang_de__' ]]; then
+        command=$(build_mode_command __preview_language_choice "$STATE_DIR" de)
+    elif [[ "$target" == '__lang_en__' ]]; then
+        command=$(build_mode_command __preview_language_choice "$STATE_DIR" en)
+    elif [[ "$target" == '__lang_ru__' ]]; then
+        command=$(build_mode_command __preview_language_choice "$STATE_DIR" ru)
+    elif [[ "$target" == '__back__' ]]; then
+        command=$(build_mode_command __preview_back "$STATE_DIR")
+    elif [[ "$target" == '__back_settings__' ]]; then
+        command=$(build_mode_command __preview_back_settings "$STATE_DIR")
+    elif [[ -z "$target" || "$target" == '__new__' ]]; then
         command=$(build_mode_command __preview_placeholder "$STATE_DIR")
     else
         command=$(build_mode_command __preview_session "$STATE_DIR" "$target")
@@ -126,72 +490,191 @@ ui_rule() {
     printf '%*s\n' "$width" '' | tr ' ' "$char"
 }
 
+ui_badge() {
+    local color="$1"
+    local text="$2"
+
+    printf '%s[%s]%s' "$color" "$text" "$UI_RESET"
+}
+
 render_menu() {
     local index=0
     local kind name windows status selected_kind
-    local status_display marker line_name line_windows
+    local status_display marker line_name line_windows special_badge
+    local row_prefix row_name_color
     local status_prefix
+    local item_prefix
 
     ui_init
+    read_menu_context
     IFS=$'\t' read -r selected_kind _ <<< "$(selected_line)"
 
     clear
-    printf '%s%sTMUX SSH CHOOSER%s\n' "$UI_BOLD" "$UI_CYAN" "$UI_RESET"
+    if [[ "$MENU_CONTEXT" == "language" ]]; then
+        printf '%s%s%s%s\n' "$UI_BOLD" "$UI_CYAN" "$(txt language_menu_title)" "$UI_RESET"
+    elif [[ "$MENU_CONTEXT" == "settings" ]]; then
+        printf '%s%s%s%s\n' "$UI_BOLD" "$UI_CYAN" "$(txt settings_menu_title)" "$UI_RESET"
+    else
+        printf '%s%s%s%s\n' "$UI_BOLD" "$UI_CYAN" "$(txt menu_title)" "$UI_RESET"
+    fi
     ui_rule "─"
     if [[ "$selected_kind" == "new" ]]; then
-        printf '%sEnter%s öffnen  %s•%s  %sn%s nur erstellen  %s•%s  %sCtrl-R%s umbenennen  %s•%s  %sCtrl-X%s beenden  %s•%s  %sq/ESC%s Shell\n' \
+        printf '%sEnter%s %s  %s•%s  %sn%s %s  %s•%s  %sCtrl-R%s %s  %s•%s  %sCtrl-X%s %s  %s•%s  %sq/ESC/BS%s %s\n' \
             "$UI_BOLD" "$UI_RESET" \
+            "$(txt open)" \
             "$UI_DIM" "$UI_RESET" \
             "$UI_BOLD" "$UI_RESET" \
+            "$(txt create_only)" \
             "$UI_DIM" "$UI_RESET" \
             "$UI_BOLD" "$UI_RESET" \
+            "$(txt rename)" \
             "$UI_DIM" "$UI_RESET" \
             "$UI_BOLD" "$UI_RESET" \
+            "$(txt close)" \
             "$UI_DIM" "$UI_RESET" \
-            "$UI_BOLD" "$UI_RESET"
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt shell)"
+    elif [[ "$selected_kind" == "settings" ]]; then
+        printf '%s%s%s  %s•%s  %sCtrl-R%s %s  %s•%s  %sCtrl-X%s %s  %s•%s  %sq/ESC/BS%s %s\n' \
+            "$UI_BOLD" "Enter  $(txt settings_open)" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt rename)" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt close)" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt shell)"
+    elif [[ "$selected_kind" == "language" ]]; then
+        printf '%s%s%s  %s•%s  %sq/ESC/BS%s %s\n' \
+            "$UI_BOLD" "$(txt language_enter)" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt back_action)"
+    elif [[ "$selected_kind" == "lang_de" || "$selected_kind" == "lang_en" || "$selected_kind" == "lang_ru" ]]; then
+        printf '%s%s%s  %s•%s  %sq/ESC/BS%s %s\n' \
+            "$UI_BOLD" "$(txt language_apply)" "$UI_RESET" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt back_action)"
+    elif [[ "$selected_kind" == "back" ]]; then
+        printf '%sEnter%s %s  %s•%s  %sq/ESC/BS%s %s\n' \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt back_action)" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt back_action)"
+    elif [[ "$selected_kind" == "back_settings" ]]; then
+        printf '%sEnter%s %s  %s•%s  %sq/ESC/BS%s %s\n' \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt back_action)" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt back_action)"
     else
-        printf '%sEnter%s öffnen  %s•%s  %sCtrl-R%s umbenennen  %s•%s  %sCtrl-X%s beenden  %s•%s  %sq/ESC%s Shell\n' \
+        printf '%sEnter%s %s  %s•%s  %sCtrl-R%s %s  %s•%s  %sCtrl-X%s %s  %s•%s  %sq/ESC/BS%s %s\n' \
             "$UI_BOLD" "$UI_RESET" \
+            "$(txt open)" \
             "$UI_DIM" "$UI_RESET" \
             "$UI_BOLD" "$UI_RESET" \
+            "$(txt rename)" \
             "$UI_DIM" "$UI_RESET" \
             "$UI_BOLD" "$UI_RESET" \
+            "$(txt close)" \
             "$UI_DIM" "$UI_RESET" \
-            "$UI_BOLD" "$UI_RESET"
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt shell)"
     fi
     printf '\n'
 
     while IFS=$'\t' read -r kind name windows status; do
-        if [[ "$kind" == "new" ]]; then
-            if (( index == SELECTED_INDEX )); then
-                printf '%s%s›%s  %s%s%s\n' "$UI_BOLD" "$UI_CYAN" "$UI_RESET" "$UI_BOLD" "$name" "$UI_RESET"
+        if [[ "$MENU_CONTEXT" == "root" && $index -eq 0 ]]; then
+            printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
+        elif [[ "$MENU_CONTEXT" == "settings" && $index -eq 0 ]]; then
+            printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
+        elif [[ "$MENU_CONTEXT" == "language" && $index -eq 0 ]]; then
+            printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
+        elif [[ "$MENU_CONTEXT" == "root" && $index -eq 2 ]]; then
+            printf '\n'
+            printf '%s%s%s\n' "$UI_BOLD" "$(txt section_sessions)" "$UI_RESET"
+        fi
+
+        if [[ "$kind" == "new" || "$kind" == "settings" || "$kind" == "language" || "$kind" == "back" || "$kind" == "lang_de" || "$kind" == "lang_en" || "$kind" == "lang_ru" || "$kind" == "back_settings" ]]; then
+            if [[ "$kind" == "settings" ]]; then
+                special_badge=""
+            elif [[ "$kind" == "language" ]]; then
+                special_badge="$(ui_badge "$UI_CYAN" "lang")"
+            elif [[ "$kind" == "lang_de" ]]; then
+                special_badge="$(ui_badge "$UI_CYAN" "de")"
+            elif [[ "$kind" == "lang_en" ]]; then
+                special_badge="$(ui_badge "$UI_CYAN" "en")"
+            elif [[ "$kind" == "lang_ru" ]]; then
+                special_badge="$(ui_badge "$UI_CYAN" "ru")"
+            elif [[ "$kind" == "back_settings" ]]; then
+                special_badge="$(ui_badge "$UI_DIM" "<")"
+            elif [[ "$kind" == "back" ]]; then
+                special_badge="$(ui_badge "$UI_DIM" "<")"
             else
-                printf '   %s%s%s\n' "$UI_BLUE" "$name" "$UI_RESET"
+                special_badge="$(ui_badge "$UI_BLUE" "+")"
+            fi
+            if (( index == SELECTED_INDEX )); then
+                item_prefix="${UI_BOLD}${UI_CYAN}›${UI_RESET}"
+                if [[ -n "$special_badge" ]]; then
+                    printf '%s  %s  %s%s%s\n' \
+                        "$item_prefix" \
+                        "$special_badge" \
+                        "$UI_BOLD" "$name" "$UI_RESET"
+                else
+                    printf '%s  %s%s%s\n' \
+                        "$item_prefix" \
+                        "$UI_BOLD" "$name" "$UI_RESET"
+                fi
+            else
+                item_prefix="  "
+                if [[ -n "$special_badge" ]]; then
+                    printf '%s  %s  %s%s%s\n' \
+                        "$item_prefix" \
+                        "$special_badge" \
+                        "$UI_BLUE" "$name" "$UI_RESET"
+                else
+                    printf '%s  %s%s%s\n' \
+                        "$item_prefix" \
+                        "$UI_BLUE" "$name" "$UI_RESET"
+                fi
             fi
         else
             case "$status" in
                 attached)
-                    status_display="${UI_GREEN}[attached]${UI_RESET}"
+                    status_display="$(ui_badge "$UI_GREEN" "$(txt status_attached)")"
                     ;;
                 detached)
-                    status_display="${UI_YELLOW}[detached]${UI_RESET}"
+                    status_display="$(ui_badge "$UI_YELLOW" "$(txt status_detached)")"
                     ;;
                 *)
                     status_display="[$status]"
                     ;;
             esac
-            printf -v line_name '%-24s' "$name"
-            printf -v line_windows '%3s Fenster' "$windows"
             if (( index == SELECTED_INDEX )); then
                 marker="${UI_BOLD}${UI_CYAN}›${UI_RESET}"
-                printf '%s  %s%s%s  %s%s%s  %s\n' \
+                row_prefix="${UI_DIM}│${UI_RESET}"
+                row_name_color="$UI_BOLD"
+                printf -v line_name '%-22s' "$name"
+                printf -v line_windows '%2s %s' "$windows" "$(txt windows)"
+                printf '%s %s %s%s%s  %s%s%s  %s\n' \
                     "$marker" \
-                    "$UI_BOLD" "$line_name" "$UI_RESET" \
+                    "$row_prefix" \
+                    "$row_name_color" "$line_name" "$UI_RESET" \
                     "$UI_DIM" "$line_windows" "$UI_RESET" \
                     "$status_display"
             else
-                printf '   %s  %s%s%s  %s\n' \
-                    "$line_name" \
+                row_prefix="${UI_DIM}│${UI_RESET}"
+                row_name_color="$UI_RESET"
+                printf -v line_name '%-22s' "$name"
+                printf -v line_windows '%2s %s' "$windows" "$(txt windows)"
+                printf '  %s %s%s%s  %s%s%s  %s\n' \
+                    "$row_prefix" \
+                    "$row_name_color" "$line_name" "$UI_RESET" \
                     "$UI_DIM" "$line_windows" "$UI_RESET" \
                     "$status_display"
             fi
@@ -201,12 +684,12 @@ render_menu() {
     done < "$STATE_DIR/sessions"
 
     if [[ -n "${STATUS_MESSAGE:-}" ]]; then
-        if [[ "$STATUS_MESSAGE" == Session*erstellt.* ]]; then
-            status_prefix="${UI_BOLD}${UI_GREEN} OK ${UI_RESET}"
-        elif [[ "$STATUS_MESSAGE" == Session*existiert* ]]; then
-            status_prefix="${UI_BOLD}${UI_YELLOW} HINWEIS ${UI_RESET}"
+        if [[ "$STATUS_MESSAGE" == *"$(txt created_word)." ]]; then
+            status_prefix="${UI_BOLD}${UI_GREEN} $(txt label_ok) ${UI_RESET}"
+        elif [[ "$STATUS_MESSAGE" == *"$(txt exists_word)." ]]; then
+            status_prefix="${UI_BOLD}${UI_YELLOW} $(txt label_note) ${UI_RESET}"
         else
-            status_prefix="${UI_BOLD}${UI_BLUE} INFO ${UI_RESET}"
+            status_prefix="${UI_BOLD}${UI_BLUE} $(txt label_info) ${UI_RESET}"
         fi
         printf '\n%s %s%s%s\n' "$status_prefix" "$UI_DIM" "$STATUS_MESSAGE" "$UI_RESET"
     fi
@@ -255,12 +738,57 @@ popup_prompt_line() {
         -e PROMPT_TEXT="$prompt" \
         -e PROMPT_INITIAL="$initial" \
         -e PROMPT_RESULT_FILE="$result_file" \
-        "/bin/bash -lc 'read -e -i \"\$PROMPT_INITIAL\" -p \"\$PROMPT_TEXT\" value; printf \"%s\" \"\$value\" > \"\$PROMPT_RESULT_FILE\"'"
+        "/bin/bash -lc '
+            value=\$PROMPT_INITIAL
+            replaced=0
+            printf \"%s%s\" \"\$PROMPT_TEXT\" \"\$value\"
+            stty -echo -icanon time 0 min 1
+            trap \"stty sane\" EXIT
+
+            while IFS= read -rsn1 key; do
+                case \"\$key\" in
+                    \"\"|$'\''\n'\''|$'\''\r'\'')
+                        break
+                        ;;
+                    $'\''\x1b'\'')
+                        printf \"\n\"
+                        exit 0
+                        ;;
+                    $'\''\177'\''|$'\''\b'\'')
+                        if [[ -n \"\$value\" ]]; then
+                            value=\${value%?}
+                            printf \"\b \b\"
+                        fi
+                        ;;
+                    $'\''\t'\'')
+                        ;;
+                    *)
+                        if (( replaced == 0 )) && [[ -n \"\$PROMPT_INITIAL\" ]]; then
+                            while [[ -n \"\$value\" ]]; do
+                                value=\${value%?}
+                                printf \"\b \b\"
+                            done
+                            replaced=1
+                        fi
+                        value+=\$key
+                        printf \"%s\" \"\$key\"
+                        ;;
+                esac
+            done
+
+            stty sane
+            trap - EXIT
+            printf \"%s\" \"\$value\" > \"\$PROMPT_RESULT_FILE\"
+            printf \"\n\"
+        '"
 
     if [[ -f "$result_file" ]]; then
         cat "$result_file"
         rm -f "$result_file"
+        return 0
     fi
+
+    return 1
 }
 
 popup_confirm() {
@@ -273,11 +801,105 @@ popup_confirm() {
 
     tmux display-popup -E \
         -w 70% \
-        -h 20% \
+        -h 30% \
         -T "$title" \
         -e CONFIRM_TEXT="$prompt" \
         -e CONFIRM_RESULT_FILE="$result_file" \
-        "/bin/bash -lc 'printf \"%s [j/n] \" \"\$CONFIRM_TEXT\"; IFS= read -rsn1 answer; printf \"%s\" \"\$answer\" > \"\$CONFIRM_RESULT_FILE\"; printf \"\n\"'"
+        "/bin/bash -lc '
+            read_key() {
+                local key next
+
+                IFS= read -rsn1 key
+                if [[ \"\$key\" == \$'\''\x1b'\'' ]]; then
+                    if IFS= read -rsn1 -t 0.05 next; then
+                        key+=\$next
+                        if [[ ( \"\$next\" == \"[\" || \"\$next\" == \"O\" ) ]] && IFS= read -rsn1 -t 0.05 next; then
+                            key+=\$next
+                        fi
+                    fi
+                fi
+
+                printf \"%s\" \"\$key\"
+            }
+
+            render_dialog() {
+                local reset bold dim cyan green yellow
+                local yes_marker no_marker yes_style no_style
+
+                reset=\$(tput sgr0)
+                bold=\$(tput bold)
+                dim=\$(tput dim)
+                cyan=\$(tput setaf 6)
+                green=\$(tput setaf 2)
+                yellow=\$(tput setaf 3)
+
+                clear
+                printf \"%s%sSESSION SCHLIESSEN%s\n\" \"\$bold\" \"\$cyan\" \"\$reset\"
+                printf \"%*s\n\" 56 \"\" | tr \" \" \"-\"
+                printf \"%sEnter%s bestaetigen  %s•%s  %s←/→/↑/↓%s waehlen  %s•%s  %sy/j%s ja  %s•%s  %sn/Esc%s nein\n\n\" \
+                    \"\$bold\" \"\$reset\" \
+                    \"\$dim\" \"\$reset\" \
+                    \"\$bold\" \"\$reset\" \
+                    \"\$dim\" \"\$reset\" \
+                    \"\$bold\" \"\$reset\" \
+                    \"\$dim\" \"\$reset\" \
+                    \"\$bold\" \"\$reset\"
+                printf \"%s\n\n\" \"\$CONFIRM_TEXT\"
+
+                if [[ \"\$selected\" == \"yes\" ]]; then
+                    yes_marker=\"\${bold}\${cyan}›\${reset}\"
+                    no_marker=\" \"
+                    yes_style=\"\${bold}\${green}\"
+                    no_style=\"\${reset}\"
+                else
+                    yes_marker=\" \"
+                    no_marker=\"\${bold}\${cyan}›\${reset}\"
+                    yes_style=\"\${reset}\"
+                    no_style=\"\${bold}\${yellow}\"
+                fi
+
+                printf \"%s  %s[Y] Yes%s      session beenden\n\" \"\$yes_marker\" \"\$yes_style\" \"\$reset\"
+                printf \"%s  %s[N] No%s       abbrechen\n\" \"\$no_marker\" \"\$no_style\" \"\$reset\"
+            }
+
+            selected=no
+            tput civis
+            stty -echo -icanon time 0 min 1
+            trap \"stty sane; tput cnorm\" EXIT
+
+            while :; do
+                render_dialog
+                answer=\$(read_key)
+                case \"\$answer\" in
+                    y|Y|j|J)
+                        printf \"Y\" > \"\$CONFIRM_RESULT_FILE\"
+                        break
+                        ;;
+                    n|N|$'\''\x1b'\'')
+                        printf \"N\" > \"\$CONFIRM_RESULT_FILE\"
+                        break
+                        ;;
+                    \"\"|$'\''\n'\''|$'\''\r'\'')
+                        if [[ \"\$selected\" == \"yes\" ]]; then
+                            printf \"Y\" > \"\$CONFIRM_RESULT_FILE\"
+                        else
+                            printf \"N\" > \"\$CONFIRM_RESULT_FILE\"
+                        fi
+                        break
+                        ;;
+                    $'\''\x1b[D'\''|$'\''\x1b[A'\''|h|H|k|K)
+                        selected=yes
+                        ;;
+                    $'\''\x1b[C'\''|$'\''\x1b[B'\''|l|L)
+                        selected=no
+                        ;;
+                esac
+            done
+
+            stty sane
+            tput cnorm
+            trap - EXIT
+        '"
 
     if [[ -f "$result_file" ]]; then
         answer=$(cat "$result_file")
@@ -316,12 +938,12 @@ create_session_only() {
     local target="$1"
 
     if session_exists "$target"; then
-        STATUS_MESSAGE="Session \"$target\" existiert bereits."
+        STATUS_MESSAGE="$(status_exists "$target")"
         return
     fi
 
     tmux new-session -d -s "$target" >/dev/null 2>&1
-    STATUS_MESSAGE="Session \"$target\" erstellt."
+    STATUS_MESSAGE="$(status_created "$target")"
 }
 
 rename_selected_session() {
@@ -330,7 +952,7 @@ rename_selected_session() {
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
     [[ "$kind" == "session" ]] || return
 
-    new_name=$(popup_prompt_line "Session umbenennen: $name" "Neuer Name: " "")
+    new_name=$(popup_prompt_line "$(rename_title "$name")" "$(txt prompt_rename_name)" "$name") || return
     new_name=${new_name:-$name}
 
     if [[ "$new_name" == "$name" ]]; then
@@ -339,7 +961,7 @@ rename_selected_session() {
     fi
 
     if session_exists "$new_name"; then
-        STATUS_MESSAGE="Session \"$new_name\" existiert bereits."
+        STATUS_MESSAGE="$(status_exists "$new_name")"
         return
     fi
 
@@ -353,7 +975,7 @@ kill_selected_session() {
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
     [[ "$kind" == "session" ]] || return
 
-    if ! popup_confirm "Session schließen" "Wirklich Session \"$name\" schließen?"; then
+    if ! popup_confirm "$(txt confirm_close_title)" "$(confirm_close_text "$name")"; then
         STATUS_MESSAGE=
         return
     fi
@@ -368,9 +990,23 @@ handle_enter() {
 
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
 
-    if [[ "$kind" == "new" ]]; then
-        new_name=$(popup_prompt_line "Neue Session" "Neuer Session-Name: " "main")
-        new_name=${new_name:-main}
+    if [[ "$kind" == "settings" ]]; then
+        enter_settings_menu
+    elif [[ "$kind" == "language" ]]; then
+        enter_language_menu
+    elif [[ "$kind" == "lang_de" ]]; then
+        handle_settings de
+    elif [[ "$kind" == "lang_en" ]]; then
+        handle_settings en
+    elif [[ "$kind" == "lang_ru" ]]; then
+        handle_settings ru
+    elif [[ "$kind" == "back" ]]; then
+        leave_settings_menu
+    elif [[ "$kind" == "back_settings" ]]; then
+        leave_language_menu
+    elif [[ "$kind" == "new" ]]; then
+        new_name=$(popup_prompt_line "$(txt prompt_new_title)" "$(txt prompt_new_name)" "") || return
+        new_name=${new_name:-$(txt default_main)}
         create_or_open_session "$new_name"
     else
         switch_to_session "$name"
@@ -383,23 +1019,35 @@ handle_create_only() {
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
     [[ "$kind" == "new" ]] || return
 
-    new_name=$(popup_prompt_line "Neue Session" "Neuer Session-Name: " "main")
-    new_name=${new_name:-main}
+    new_name=$(popup_prompt_line "$(txt prompt_new_title)" "$(txt prompt_new_name)" "") || return
+    new_name=${new_name:-$(txt default_main)}
     create_session_only "$new_name"
+}
+
+handle_settings() {
+    local new_lang="${1:-}"
+
+    [[ -n "$new_lang" ]] || return
+
+    CHOOSER_LANG="$new_lang"
+    save_config
+    STATUS_MESSAGE="$(txt language_saved)"
+    write_items
 }
 
 menu_mode() {
     local key count current_target last_target
 
     STATUS_MESSAGE=
-    SELECTED_INDEX=0
+    SELECTED_INDEX=1
     last_target=''
+    write_menu_context
 
     enable_raw_mode
     trap 'disable_raw_mode' EXIT
 
     while true; do
-        write_sessions
+        write_items
         count=$(item_count)
 
         if (( count <= 0 )); then
@@ -427,15 +1075,38 @@ menu_mode() {
                 (( SELECTED_INDEX + 1 < count )) && SELECTED_INDEX=$((SELECTED_INDEX + 1))
                 ;;
             $'\x1b')
-                tmux detach-client -s "$CHOOSER_SESSION" >/dev/null 2>&1
-                exit 0
+                read_menu_context
+                if [[ "$MENU_CONTEXT" == "language" ]]; then
+                    leave_language_menu
+                    write_items
+                    count=$(item_count)
+                elif [[ "$MENU_CONTEXT" == "settings" ]]; then
+                    leave_settings_menu
+                    write_items
+                    count=$(item_count)
+                else
+                    tmux detach-client -s "$CHOOSER_SESSION" >/dev/null 2>&1
+                    exit 0
+                fi
+                ;;
+            $'\x7f'|$'\x08')
+                read_menu_context
+                if [[ "$MENU_CONTEXT" == "language" ]]; then
+                    leave_language_menu
+                    write_items
+                    count=$(item_count)
+                elif [[ "$MENU_CONTEXT" == "settings" ]]; then
+                    leave_settings_menu
+                    write_items
+                    count=$(item_count)
+                fi
                 ;;
             ''|$'\n'|$'\r')
                 handle_enter
                 ;;
             n|N)
                 handle_create_only
-                write_sessions
+                write_items
                 count=$(item_count)
                 if (( SELECTED_INDEX >= count )); then
                     SELECTED_INDEX=$((count - 1))
@@ -446,8 +1117,19 @@ menu_mode() {
                 last_target="$current_target"
                 ;;
             q|Q)
-                tmux detach-client -s "$CHOOSER_SESSION" >/dev/null 2>&1
-                exit 0
+                read_menu_context
+                if [[ "$MENU_CONTEXT" == "language" ]]; then
+                    leave_language_menu
+                    write_items
+                    count=$(item_count)
+                elif [[ "$MENU_CONTEXT" == "settings" ]]; then
+                    leave_settings_menu
+                    write_items
+                    count=$(item_count)
+                else
+                    tmux detach-client -s "$CHOOSER_SESSION" >/dev/null 2>&1
+                    exit 0
+                fi
                 ;;
             k|K)
                 (( SELECTED_INDEX > 0 )) && SELECTED_INDEX=$((SELECTED_INDEX - 1))
@@ -460,10 +1142,10 @@ menu_mode() {
                 ;;
             $'\x18')
                 kill_selected_session
-                write_sessions
+                write_items
                 count=$(item_count)
                 if (( count == 1 )); then
-                    STATUS_MESSAGE='Keine Sessions vorhanden. Wähle "[Neue Session erstellen]".'
+                    STATUS_MESSAGE="$(status_no_sessions)"
                     SELECTED_INDEX=0
                 elif (( SELECTED_INDEX >= count )); then
                     SELECTED_INDEX=$((count - 1))
@@ -480,20 +1162,133 @@ menu_mode() {
 preview_placeholder_mode() {
     ui_init
     clear
-    printf '%s%sNEUE SESSION%s\n' "$UI_BOLD" "$UI_BLUE" "$UI_RESET"
+    printf '%s%s%s%s\n' "$UI_BOLD" "$UI_BLUE" "$(txt new_title)" "$UI_RESET"
     ui_rule "─"
     printf '\n'
-    printf '%sAktion%s\n' "$UI_BOLD" "$UI_RESET"
-    printf '  %sEnter%s  neue Session anlegen und direkt öffnen\n' "$UI_BOLD" "$UI_RESET"
-    printf '  %sn%s      neue Session nur anlegen und im Chooser bleiben\n' "$UI_BOLD" "$UI_RESET"
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
+    printf '  %sEnter%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt new_enter_desc)"
+    printf '  %sn%s      %s\n' "$UI_BOLD" "$UI_RESET" "$(txt new_n_desc)"
     printf '\n'
-    printf '%sVorgabe%s\n' "$UI_BOLD" "$UI_RESET"
-    printf '  %sDefault%s  main\n' "$UI_BOLD" "$UI_RESET"
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_default)" "$UI_RESET"
+    printf '  %s%s%s  %s\n' "$UI_BOLD" "$(txt label_default)" "$UI_RESET" "$(txt default_main)"
     printf '\n'
-    printf '%sWeitere Tasten%s\n' "$UI_BOLD" "$UI_RESET"
-    printf '  %sCtrl-R%s   markierte Session umbenennen\n' "$UI_BOLD" "$UI_RESET"
-    printf '  %sCtrl-X%s   markierte Session beenden\n' "$UI_BOLD" "$UI_RESET"
-    printf '  %sq / ESC%s  zurück zur normalen Shell\n' "$UI_BOLD" "$UI_RESET"
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_keys)" "$UI_RESET"
+    printf '  %sCtrl-R%s   %s\n' "$UI_BOLD" "$UI_RESET" "$(txt rename_desc)"
+    printf '  %sCtrl-X%s   %s\n' "$UI_BOLD" "$UI_RESET" "$(txt close_desc)"
+    printf '  %sq / ESC%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt shell_desc)"
+
+    while :; do
+        sleep 3600
+    done
+}
+
+preview_settings_mode() {
+    ui_init
+    clear
+    printf '%s%s%s%s\n' "$UI_BOLD" "$UI_BLUE" "$(txt settings_menu_title)" "$UI_RESET"
+    ui_rule "─"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
+    printf '  %sEnter%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt settings_menu_desc)"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_keys)" "$UI_RESET"
+    printf '  %sq / ESC%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt back_desc)"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt available)" "$UI_RESET"
+    printf '  %s•%s  %s\n' "$UI_CYAN" "$UI_RESET" "$(txt language)"
+
+    while :; do
+        sleep 3600
+    done
+}
+
+preview_language_mode() {
+    ui_init
+    clear
+    printf '%s%s%s%s\n' "$UI_BOLD" "$UI_BLUE" "$(txt language_menu_title)" "$UI_RESET"
+    ui_rule "─"
+    printf '\n'
+    printf '%s%s%s  %s\n' \
+        "$UI_BOLD" "$(txt lang_current)" "$UI_RESET" \
+        "$(ui_badge "$UI_CYAN" "$(language_display)")"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt available)" "$UI_RESET"
+    printf '  %s•%s  de\n' "$UI_CYAN" "$UI_RESET"
+    printf '  %s•%s  en\n' "$UI_CYAN" "$UI_RESET"
+    printf '  %s•%s  ru\n' "$UI_CYAN" "$UI_RESET"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
+    printf '  %sEnter%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt language_apply)"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_keys)" "$UI_RESET"
+    printf '  %sq / ESC%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt back_settings_desc)"
+
+    while :; do
+        sleep 3600
+    done
+}
+
+preview_language_choice_mode() {
+    local target_lang="$1"
+    local target_name
+
+    ui_init
+    clear
+
+    case "$target_lang" in
+        de) target_name="$(txt lang_name_de)" ;;
+        en) target_name="$(txt lang_name_en)" ;;
+        ru) target_name="$(txt lang_name_ru)" ;;
+        *) target_name="$target_lang" ;;
+    esac
+
+    printf '%s%s%s%s\n' "$UI_BOLD" "$UI_BLUE" "$(txt language_menu_title)" "$UI_RESET"
+    ui_rule "─"
+    printf '\n'
+    printf '%s%s%s  %s\n' \
+        "$UI_BOLD" "$(txt language)" "$UI_RESET" \
+        "$(ui_badge "$UI_CYAN" "$target_lang")"
+    printf '  %s%s%s  %s\n' "$UI_BOLD" "$(txt lang_current)" "$UI_RESET" "$(language_display)"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
+    printf '  %sEnter%s  %s\n' "$UI_BOLD" "$UI_RESET" "$target_name"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_keys)" "$UI_RESET"
+    printf '  %sq / ESC%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt back_settings_desc)"
+
+    while :; do
+        sleep 3600
+    done
+}
+
+preview_back_mode() {
+    ui_init
+    clear
+    printf '%s%s%s%s\n' "$UI_BOLD" "$UI_BLUE" "$(txt settings_menu_title)" "$UI_RESET"
+    ui_rule "─"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
+    printf '  %sEnter%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt back_desc)"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_keys)" "$UI_RESET"
+    printf '  %sq / ESC%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt back_desc)"
+
+    while :; do
+        sleep 3600
+    done
+}
+
+preview_back_settings_mode() {
+    ui_init
+    clear
+    printf '%s%s%s%s\n' "$UI_BOLD" "$UI_BLUE" "$(txt language_menu_title)" "$UI_RESET"
+    ui_rule "─"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
+    printf '  %sEnter%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt back_settings_desc)"
+    printf '\n'
+    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_keys)" "$UI_RESET"
+    printf '  %sq / ESC%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt back_settings_desc)"
 
     while :; do
         sleep 3600
@@ -510,6 +1305,7 @@ preview_session_mode() {
 main_mode() {
     local script_path
 
+    load_config
     STATE_DIR=$(mktemp -d /tmp/tmux-ssh-chooser.XXXXXX)
     script_path="$0"
     CHOOSER_SESSION="${CHOOSER_PREFIX}_$$"
@@ -541,14 +1337,42 @@ MODE="${1:-__main}"
 case "$MODE" in
     __menu)
         STATE_DIR="$2"
+        load_config
         menu_mode
         ;;
     __preview_placeholder)
         STATE_DIR="$2"
+        load_config
         preview_placeholder_mode
+        ;;
+    __preview_settings)
+        STATE_DIR="$2"
+        load_config
+        preview_settings_mode
+        ;;
+    __preview_language)
+        STATE_DIR="$2"
+        load_config
+        preview_language_mode
+        ;;
+    __preview_language_choice)
+        STATE_DIR="$2"
+        load_config
+        preview_language_choice_mode "$3"
+        ;;
+    __preview_back)
+        STATE_DIR="$2"
+        load_config
+        preview_back_mode
+        ;;
+    __preview_back_settings)
+        STATE_DIR="$2"
+        load_config
+        preview_back_settings_mode
         ;;
     __preview_session)
         STATE_DIR="$2"
+        load_config
         preview_session_mode "$3"
         ;;
     __main)

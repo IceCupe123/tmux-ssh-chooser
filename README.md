@@ -6,7 +6,7 @@ Ein Bash-basierter tmux-Session-Chooser fuer interaktive SSH-Logins.
 
 - `bin/tmux-ssh-chooser`: der eigentliche Chooser
 - `docs/bashrc-snippet.sh`: Hook fuer die `~/.bashrc`
-- `install.sh`: verlinkt die Repo-Version nach `~/.local/bin`
+- `install.sh`: laedt das Script nach `~/.local/bin` und traegt den Hook in `~/.bashrc` ein
 - `TODO.md`: offene Punkte fuer Bedienung und UI
 
 ## Verhalten
@@ -21,9 +21,8 @@ Ein Bash-basierter tmux-Session-Chooser fuer interaktive SSH-Logins.
 
 ## Installation
 
-1. `./install.sh` im Repo ausfuehren
-2. den Hook aus `docs/bashrc-snippet.sh` in die `~/.bashrc` aufnehmen
-3. neue SSH-Session oeffnen
+1. `curl -fsSL https://git.dotzip.de/IceCupe123/tmux-ssh-chooser/raw/branch/main/install.sh | bash`
+2. neue SSH-Session oeffnen oder `source ~/.bashrc` ausfuehren
 
 ## Entwicklung
 

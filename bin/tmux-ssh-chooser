@@ -34,6 +34,18 @@ write_selected_target() {
     fi
 }
 
+selected_target() {
+    if [[ -f "$STATE_DIR/selected" ]]; then
+        <"$STATE_DIR/selected" tr -d '\n'
+    else
+        printf '__new__'
+    fi
+}
+
+notify_preview() {
+    printf 'render\n' >&3
+}
+
 render_menu() {
     local index=0
     local kind name windows status
@@ -74,7 +86,7 @@ read_key() {
     if [[ "$key" == $'\x1b' ]]; then
         if IFS= read -rsn1 -t 0.05 next; then
             key+="$next"
-            if [[ "$next" == "[" ]] && IFS= read -rsn1 -t 0.05 next; then
+            if [[ ( "$next" == "[" || "$next" == "O" ) ]] && IFS= read -rsn1 -t 0.05 next; then
                 key+="$next"
             fi
         fi
@@ -175,13 +187,15 @@ handle_enter() {
 }
 
 menu_mode() {
-    local key count
+    local key count current_target last_target
 
     STATUS_MESSAGE=
     SELECTED_INDEX=0
+    last_target=''
 
     enable_raw_mode
     trap 'disable_raw_mode' EXIT
+    exec 3>"$STATE_DIR/events"
 
     while true; do
         write_sessions
@@ -194,15 +208,20 @@ menu_mode() {
         fi
 
         write_selected_target
+        current_target=$(selected_target)
+        if [[ "$current_target" != "$last_target" ]]; then
+            notify_preview
+            last_target="$current_target"
+        fi
         render_menu
 
         key=$(read_key)
 
         case "$key" in
-            $'\x1b[A')
+            $'\x1b[A'|$'\x1bOA')
                 (( SELECTED_INDEX > 0 )) && SELECTED_INDEX=$((SELECTED_INDEX - 1))
                 ;;
-            $'\x1b[B')
+            $'\x1b[B'|$'\x1bOB')
                 (( SELECTED_INDEX + 1 < count )) && SELECTED_INDEX=$((SELECTED_INDEX + 1))
                 ;;
             $'\x1b')
@@ -224,6 +243,7 @@ menu_mode() {
                 ;;
             $'\x12')
                 rename_selected_session
+                notify_preview
                 ;;
             $'\x18')
                 kill_selected_session
@@ -235,6 +255,10 @@ menu_mode() {
                 elif (( SELECTED_INDEX >= count )); then
                     SELECTED_INDEX=$((count - 1))
                 fi
+                write_selected_target
+                current_target=$(selected_target)
+                notify_preview
+                last_target="$current_target"
                 ;;
         esac
     done
@@ -279,25 +303,27 @@ build_preview_content() {
 }
 
 preview_mode() {
-    local target current_render last_render
+    local target current_render
+
+    exec 4<"$STATE_DIR/events"
+
+    target=$(selected_target)
+    current_render=$(build_preview_content "$target")
+    tput cup 0 0
+    tput ed
+    printf '%s' "$current_render"
 
     while tmux has-session -t "$CHOOSER_SESSION" >/dev/null 2>&1; do
-        if [[ -f "$STATE_DIR/selected" ]]; then
-            target=$(<"$STATE_DIR/selected")
-        else
-            target='__new__'
+        if ! IFS= read -r _ <&4; then
+            break
         fi
 
+        target=$(selected_target)
         current_render=$(build_preview_content "$target")
 
-        if [[ "${last_render:-}" != "$current_render" ]]; then
-            tput cup 0 0
-            tput ed
-            printf '%s' "$current_render"
-            last_render="$current_render"
-        fi
-
-        sleep 0.15
+        tput cup 0 0
+        tput ed
+        printf '%s' "$current_render"
     done
 }
 
@@ -306,6 +332,7 @@ main_mode() {
 
     STATE_DIR=$(mktemp -d /tmp/tmux-ssh-chooser.XXXXXX)
     script_path="$0"
+    mkfifo "$STATE_DIR/events"
 
     tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
 

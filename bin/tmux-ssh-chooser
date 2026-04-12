@@ -340,6 +340,7 @@ main_mode() {
     tmux split-window -h -l 60% -t "$CHOOSER_SESSION":chooser "/bin/bash '$script_path' __preview '$STATE_DIR'"
     tmux set-option -t "$CHOOSER_SESSION" status off >/dev/null 2>&1
     tmux select-layout -t "$CHOOSER_SESSION":chooser even-horizontal >/dev/null 2>&1
+    tmux select-pane -t "$CHOOSER_SESSION":chooser.0 >/dev/null 2>&1
 
     tmux attach-session -t "$CHOOSER_SESSION"
 

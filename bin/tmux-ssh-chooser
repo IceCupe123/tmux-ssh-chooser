@@ -42,6 +42,36 @@ selected_target() {
     fi
 }
 
+build_mode_command() {
+    local mode="$1"
+    shift
+    local part cmd=""
+
+    for part in /bin/bash "$0" "$mode" "$@"; do
+        if [[ -n "$cmd" ]]; then
+            cmd+=" "
+        fi
+        printf -v part '%q' "$part"
+        cmd+="$part"
+    done
+
+    printf '%s' "$cmd"
+}
+
+update_preview_pane() {
+    local target="$1"
+    local command
+
+    if [[ -z "$target" || "$target" == '__new__' ]]; then
+        command=$(build_mode_command __preview_placeholder "$STATE_DIR")
+    else
+        command=$(build_mode_command __preview_session "$STATE_DIR" "$target")
+    fi
+
+    tmux respawn-pane -k -t "$CHOOSER_SESSION":chooser.1 "$command" >/dev/null 2>&1
+    tmux select-pane -t "$CHOOSER_SESSION":chooser.0 >/dev/null 2>&1
+}
+
 render_menu() {
     local index=0
     local kind name windows status
@@ -217,6 +247,10 @@ menu_mode() {
 
         write_selected_target
         current_target=$(selected_target)
+        if [[ "$current_target" != "$last_target" ]]; then
+            update_preview_pane "$current_target"
+            last_target="$current_target"
+        fi
         last_target="$current_target"
         render_menu
 
@@ -261,77 +295,34 @@ menu_mode() {
                 fi
                 write_selected_target
                 current_target=$(selected_target)
+                update_preview_pane "$current_target"
                 last_target="$current_target"
                 ;;
         esac
     done
 }
 
-build_preview_content() {
-    local target="$1"
-    local pane_info pane_id alternate_on session_name session_windows window_index window_name
+preview_placeholder_mode() {
+    clear
+    printf '[Neue Session erstellen]\n'
+    printf '\n'
+    printf 'Enter: neue Session anlegen oder bestehende öffnen\n'
+    printf 'Default-Name: main\n'
+    printf '\n'
+    printf 'Ctrl-R: markierte Session umbenennen\n'
+    printf 'Ctrl-X: markierte Session beenden\n'
+    printf 'q oder ESC: zurück zur normalen Shell\n'
 
-    if [[ -z "$target" || "$target" == '__new__' ]]; then
-        printf '%s\n' '[Neue Session erstellen]'
-        printf '\n'
-        printf '%s\n' 'Enter: neue Session anlegen oder bestehende öffnen'
-        printf '%s\n' 'Default-Name: main'
-        printf '\n'
-        printf '%s\n' 'Ctrl-R: markierte Session umbenennen'
-        printf '%s\n' 'Ctrl-X: markierte Session beenden'
-        printf '%s\n' 'q oder ESC: zurück zur normalen Shell'
-        return
-    fi
-
-    pane_info=$(tmux display-message -p -t "$target" "#{pane_id}\t#{alternate_on}\t#{session_name}\t#{session_windows}\t#{window_index}\t#{window_name}" 2>/dev/null) || {
-        printf '%s\n' 'Keine Vorschau verfügbar'
-        return
-    }
-
-    pane_id=$(printf '%s' "$pane_info" | cut -f1)
-    alternate_on=$(printf '%s' "$pane_info" | cut -f2)
-    session_name=$(printf '%s' "$pane_info" | cut -f3)
-    session_windows=$(printf '%s' "$pane_info" | cut -f4)
-    window_index=$(printf '%s' "$pane_info" | cut -f5)
-    window_name=$(printf '%s' "$pane_info" | cut -f6-)
-
-    printf 'Session: %s | Fenster: %s | Aktiv: %s:%s\n\n' \
-        "$session_name" "$session_windows" "$window_index" "$window_name"
-
-    if [[ "$alternate_on" == "1" ]]; then
-        tmux capture-pane -p -a -e -N -J -t "$pane_id" 2>/dev/null || printf '%s\n' 'Keine Vorschau verfügbar'
-    else
-        tmux capture-pane -p -e -N -J -t "$pane_id" -S -60 -E - 2>/dev/null || printf '%s\n' 'Keine Vorschau verfügbar'
-    fi
+    while :; do
+        sleep 3600
+    done
 }
 
-preview_mode() {
-    local target current_render last_render last_target
+preview_session_mode() {
+    local target="$1"
 
-    last_render=''
-    last_target=''
-
-    while tmux has-session -t "$CHOOSER_SESSION" >/dev/null 2>&1; do
-        target=$(selected_target)
-        if [[ "$target" != "$last_target" ]]; then
-            current_render=$(build_preview_content "$target")
-            tput cup 0 0
-            tput ed
-            printf '%s' "$current_render"
-            last_render="$current_render"
-            last_target="$target"
-        else
-            current_render=$(build_preview_content "$target")
-            if [[ "$current_render" != "$last_render" ]]; then
-                tput cup 0 0
-                tput ed
-                printf '%s' "$current_render"
-                last_render="$current_render"
-            fi
-        fi
-
-        sleep 0.25
-    done
+    unset TMUX
+    exec tmux attach-session -t "=$target"
 }
 
 main_mode() {
@@ -342,8 +333,8 @@ main_mode() {
 
     tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
 
-    tmux new-session -d -s "$CHOOSER_SESSION" -n chooser "/bin/bash '$script_path' __menu '$STATE_DIR'"
-    tmux split-window -h -l 60% -t "$CHOOSER_SESSION":chooser "/bin/bash '$script_path' __preview '$STATE_DIR'"
+    tmux new-session -d -s "$CHOOSER_SESSION" -n chooser "$(build_mode_command __menu "$STATE_DIR")"
+    tmux split-window -h -l 60% -t "$CHOOSER_SESSION":chooser "$(build_mode_command __preview_placeholder "$STATE_DIR")"
     tmux set-option -t "$CHOOSER_SESSION" status off >/dev/null 2>&1
     tmux select-layout -t "$CHOOSER_SESSION":chooser even-horizontal >/dev/null 2>&1
     tmux select-pane -t "$CHOOSER_SESSION":chooser.0 >/dev/null 2>&1
@@ -369,9 +360,13 @@ case "$MODE" in
         STATE_DIR="$2"
         menu_mode
         ;;
-    __preview)
+    __preview_placeholder)
         STATE_DIR="$2"
-        preview_mode
+        preview_placeholder_mode
+        ;;
+    __preview_session)
+        STATE_DIR="$2"
+        preview_session_mode "$3"
         ;;
     __main)
         main_mode

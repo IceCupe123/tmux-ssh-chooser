@@ -130,6 +130,7 @@ render_menu() {
     local index=0
     local kind name windows status selected_kind
     local status_display marker line_name line_windows
+    local status_prefix
 
     ui_init
     IFS=$'\t' read -r selected_kind _ <<< "$(selected_line)"
@@ -200,7 +201,14 @@ render_menu() {
     done < "$STATE_DIR/sessions"
 
     if [[ -n "${STATUS_MESSAGE:-}" ]]; then
-        printf '\n%s%s%s\n' "$UI_DIM" "$STATUS_MESSAGE" "$UI_RESET"
+        if [[ "$STATUS_MESSAGE" == Session*erstellt.* ]]; then
+            status_prefix="${UI_BOLD}${UI_GREEN} OK ${UI_RESET}"
+        elif [[ "$STATUS_MESSAGE" == Session*existiert* ]]; then
+            status_prefix="${UI_BOLD}${UI_YELLOW} HINWEIS ${UI_RESET}"
+        else
+            status_prefix="${UI_BOLD}${UI_BLUE} INFO ${UI_RESET}"
+        fi
+        printf '\n%s %s%s%s\n' "$status_prefix" "$UI_DIM" "$STATUS_MESSAGE" "$UI_RESET"
     fi
 }
 
@@ -475,13 +483,17 @@ preview_placeholder_mode() {
     printf '%s%sNEUE SESSION%s\n' "$UI_BOLD" "$UI_BLUE" "$UI_RESET"
     ui_rule "─"
     printf '\n'
-    printf '%sEnter%s  neue Session anlegen und direkt öffnen\n' "$UI_BOLD" "$UI_RESET"
-    printf '%sn%s      neue Session nur anlegen und im Chooser bleiben\n' "$UI_BOLD" "$UI_RESET"
-    printf '%sDefault%s  main\n' "$UI_BOLD" "$UI_RESET"
+    printf '%sAktion%s\n' "$UI_BOLD" "$UI_RESET"
+    printf '  %sEnter%s  neue Session anlegen und direkt öffnen\n' "$UI_BOLD" "$UI_RESET"
+    printf '  %sn%s      neue Session nur anlegen und im Chooser bleiben\n' "$UI_BOLD" "$UI_RESET"
     printf '\n'
-    printf '%sCtrl-R%s   markierte Session umbenennen\n' "$UI_BOLD" "$UI_RESET"
-    printf '%sCtrl-X%s   markierte Session beenden\n' "$UI_BOLD" "$UI_RESET"
-    printf '%sq / ESC%s  zurück zur normalen Shell\n' "$UI_BOLD" "$UI_RESET"
+    printf '%sVorgabe%s\n' "$UI_BOLD" "$UI_RESET"
+    printf '  %sDefault%s  main\n' "$UI_BOLD" "$UI_RESET"
+    printf '\n'
+    printf '%sWeitere Tasten%s\n' "$UI_BOLD" "$UI_RESET"
+    printf '  %sCtrl-R%s   markierte Session umbenennen\n' "$UI_BOLD" "$UI_RESET"
+    printf '  %sCtrl-X%s   markierte Session beenden\n' "$UI_BOLD" "$UI_RESET"
+    printf '  %sq / ESC%s  zurück zur normalen Shell\n' "$UI_BOLD" "$UI_RESET"
 
     while :; do
         sleep 3600

@@ -48,7 +48,7 @@ download_bin() {
         return
     fi
 
-    printf 'Fehler: curl oder wget wird benoetigt.\n' >&2
+    printf 'Error: curl or wget is required.\n' >&2
     exit 1
 }
 
@@ -86,13 +86,13 @@ chmod +x "$TARGET_BIN"
 update_bashrc
 
 cat <<EOF
-Installiert:
+Installed:
 - $TARGET_BIN
-- Bashrc-Hook in $BASHRC_FILE eingetragen oder aktualisiert
+- Bashrc hook added or updated in $BASHRC_FILE
 
-Quelle:
+Source:
 - $RAW_BIN_URL
 
-Naechster Schritt:
-- neue SSH-Session oeffnen oder ~/.bashrc neu laden
+Next step:
+- open a new SSH session or reload ~/.bashrc
 EOF

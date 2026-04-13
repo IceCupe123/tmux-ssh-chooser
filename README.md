@@ -7,16 +7,19 @@ It opens automatically after SSH login, lets you pick an existing tmux session, 
 ## Features
 
 - Starts only for interactive SSH shells
-- Opens `tmux new -s main` automatically if no tmux session exists yet
+- Opens a new session automatically if no tmux session exists yet
 - Session list on the left and live preview on the right
-- Create new sessions without leaving the chooser
-- Rename and close sessions from the chooser
-- Settings menu with language selection
-- Available in German, English, and Russian
+- Create, rename, and close sessions without leaving the chooser
+- Favorites system: mark sessions to pin them to the top of the list
+- Sort sessions by name, creation date, or last attach time
+- Quick session access with number keys `1`–`9` and `0`
+- Random session names as fallback when no name is entered
+- Settings menu with language selection (German, English, Russian)
+- Sort mode and language are saved and restored across sessions
 
 ## Installation
 
-Run:
+Run the installer to set up or update:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/IceCupe123/tmux-ssh-chooser/refs/heads/main/install.sh | bash
@@ -27,7 +30,6 @@ The installer will:
 - download `tmux-ssh-chooser` to `~/.local/bin/tmux-ssh-chooser`
 - make it executable
 - add or update the required hook in `~/.bashrc`
-- use GitHub as the default download source
 
 After installation, open a new SSH session or reload your shell with:
 
@@ -43,13 +45,22 @@ source ~/.bashrc
 
 ## Controls
 
-- `Enter`: open or confirm the selected item
-- `Ctrl-R`: rename selected session
-- `Ctrl-X`: close selected session
-- `q` or `Esc`: go back or return to the normal shell
-- `Backspace`: go back in submenus
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` or `k` / `j` | navigate |
+| `Enter` | open selected session |
+| `n` | create new session and stay in chooser |
+| `f` | mark or unmark selected session as favorite |
+| `s` | cycle sort mode (name → created → last attach) |
+| `1`–`9`, `0` | open session by number (0 = 10th) |
+| `Ctrl-R` | rename selected session |
+| `Ctrl-X` | close selected session |
+| `q` / `Esc` | go back or return to the normal shell |
+| `Backspace` | go back in submenus |
 
 ## Notes
 
 - If you are already inside tmux, the chooser will not start again.
-- If no tmux session exists, a new `main` session is created immediately.
+- If no tmux session exists, a new session with a random name is created immediately.
+- Favorites are stored in `~/.config/tmux-ssh-chooser/favorites`.
+- Settings are stored in `~/.config/tmux-ssh-chooser/config`.

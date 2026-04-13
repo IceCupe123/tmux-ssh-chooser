@@ -8,6 +8,8 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tmux-ssh-chooser"
 CONFIG_FILE="$CONFIG_DIR/config"
 CHOOSER_LANG="${TMUX_SSH_CHOOSER_LANG:-de}"
 MENU_CONTEXT="root"
+FAVORITES=()
+SORT_MODE="name"
 
 load_config() {
     if [[ -f "$CONFIG_FILE" ]]; then
@@ -19,11 +21,19 @@ load_config() {
         de|en|ru) ;;
         *) CHOOSER_LANG="de" ;;
     esac
+
+    case "${SORT_MODE:-name}" in
+        name|created|attached) ;;
+        *) SORT_MODE="name" ;;
+    esac
 }
 
 save_config() {
     mkdir -p "$CONFIG_DIR"
-    printf 'CHOOSER_LANG=%q\n' "$CHOOSER_LANG" > "$CONFIG_FILE"
+    {
+        printf 'CHOOSER_LANG=%q\n' "$CHOOSER_LANG"
+        printf 'SORT_MODE=%q\n'    "$SORT_MODE"
+    } > "$CONFIG_FILE"
 }
 
 txt() {
@@ -154,6 +164,10 @@ txt() {
         en:section_sessions) printf 'Sessions' ;;
         ru:section_sessions) printf 'Сессии' ;;
 
+        de:section_favorites) printf 'Favoriten' ;;
+        en:section_favorites) printf 'Favorites' ;;
+        ru:section_favorites) printf 'Избранное' ;;
+
         de:section_default) printf 'Vorgabe' ;;
         en:section_default) printf 'Default' ;;
         ru:section_default) printf 'По умолчанию' ;;
@@ -178,9 +192,9 @@ txt() {
         en:new_n_desc) printf 'create a new session and stay in chooser' ;;
         ru:new_n_desc) printf 'создать новую сессию и остаться в выборе' ;;
 
-        de:default_main) printf 'main' ;;
-        en:default_main) printf 'main' ;;
-        ru:default_main) printf 'main' ;;
+        de:default_main) printf 'zufaellig' ;;
+        en:default_main) printf 'random' ;;
+        ru:default_main) printf 'случайное' ;;
 
         de:rename_desc) printf 'markierte Session umbenennen' ;;
         en:rename_desc) printf 'rename selected session' ;;
@@ -193,6 +207,26 @@ txt() {
         de:shell_desc) printf 'zurueck zur normalen Shell' ;;
         en:shell_desc) printf 'return to normal shell' ;;
         ru:shell_desc) printf 'вернуться в обычную оболочку' ;;
+
+        de:favorite) printf 'Favorit' ;;
+        en:favorite) printf 'favorite' ;;
+        ru:favorite) printf 'избранное' ;;
+
+        de:sort_key)      printf 'Sortierung' ;;
+        en:sort_key)      printf 'sort' ;;
+        ru:sort_key)      printf 'сортировка' ;;
+
+        de:sort_name)     printf 'Name' ;;
+        en:sort_name)     printf 'Name' ;;
+        ru:sort_name)     printf 'Имя' ;;
+
+        de:sort_created)  printf 'Erstellt' ;;
+        en:sort_created)  printf 'Created' ;;
+        ru:sort_created)  printf 'Erstellt' ;;
+
+        de:sort_attached) printf 'Letzter Attach' ;;
+        en:sort_attached) printf 'Last Attach' ;;
+        ru:sort_attached) printf 'Посл. подкл.' ;;
 
         de:prompt_new_title) printf 'Neue Session' ;;
         en:prompt_new_title) printf 'New Session' ;;
@@ -358,11 +392,40 @@ list_items() {
     printf 'settings\t%s\t\t\n' "$(txt entry_settings)"
     printf 'new\t%s\t\t\n' "$(txt entry_new)"
 
-    while IFS=$'\t' read -r name windows; do
+    _sort_sessions() {
+        case "${SORT_MODE:-name}" in
+            created)
+                LC_ALL=C sort -t$'\t' -k1 -rn
+                ;;
+            attached)
+                LC_ALL=C awk -F$'\t' -v OFS=$'\t' -v snap="$STATE_DIR/last_attached" '
+                    BEGIN { while ((getline line < snap) > 0) { split(line, a, FS); ts[a[1]] = a[2] } }
+                    { $2 = (ts[$3] != "" ? ts[$3] : "0"); print }
+                ' | LC_ALL=C sort -t$'\t' -k2 -rn
+                ;;
+            *)
+                LC_ALL=C sort -t$'\t' -k3
+                ;;
+        esac
+    }
+
+    local fav_lines="" nonfav_lines=""
+    local _c _a name windows status
+    while IFS=$'\t' read -r _c _a name windows; do
+        [[ -z "$name" ]] && continue
         [[ "$name" == "$CHOOSER_PREFIX"* ]] && continue
         status=$(session_display_status "$name")
-        printf 'session\t%s\t%s\t%s\n' "$name" "$windows" "$status"
-    done < <(tmux list-sessions -F $'#{session_name}\t#{session_windows}' 2>/dev/null)
+        if is_favorite "$name"; then
+            fav_lines+=$'session\t'"$name"$'\t'"$windows"$'\t'"$status"$'\n'
+        else
+            nonfav_lines+=$'session\t'"$name"$'\t'"$windows"$'\t'"$status"$'\n'
+        fi
+    done < <(tmux list-sessions \
+        -F $'#{session_created}\t#{?session_last_attached,#{session_last_attached},0}\t#{session_name}\t#{session_windows}' \
+        2>/dev/null | _sort_sessions)
+
+    printf '%s' "$fav_lines"
+    printf '%s' "$nonfav_lines"
 }
 
 write_items() {
@@ -501,13 +564,17 @@ render_menu() {
     local index=0
     local kind name windows status selected_kind
     local status_display marker line_name line_windows special_badge
-    local row_prefix row_name_color
-    local status_prefix
+    local row_prefix row_name_color num_prefix _snum=0 _seen_fav=0 _seen_nonfav=0
+    local status_prefix display_name term_width name_width fill fill_str sort_label
     local item_prefix
 
     ui_init
     read_menu_context
     IFS=$'\t' read -r selected_kind _ <<< "$(selected_line)"
+    term_width=$(tput cols 2>/dev/null || printf '80')
+    (( term_width > 72 )) && term_width=72
+    name_width=$(( term_width - 30 ))
+    (( name_width < 12 )) && name_width=12
 
     clear
     if [[ "$MENU_CONTEXT" == "language" ]]; then
@@ -515,7 +582,14 @@ render_menu() {
     elif [[ "$MENU_CONTEXT" == "settings" ]]; then
         printf '%s%s%s%s\n' "$UI_BOLD" "$UI_CYAN" "$(txt settings_menu_title)" "$UI_RESET"
     else
-        printf '%s%s%s%s\n' "$UI_BOLD" "$UI_CYAN" "$(txt menu_title)" "$UI_RESET"
+        case "${SORT_MODE:-name}" in
+            created)  sort_label=$(txt sort_created) ;;
+            attached) sort_label=$(txt sort_attached) ;;
+            *)        sort_label=$(txt sort_name) ;;
+        esac
+        printf '%s%s%s%s  %s[%s: %s]%s\n' \
+            "$UI_BOLD" "$UI_CYAN" "$(txt menu_title)" "$UI_RESET" \
+            "$UI_DIM" "$(txt sort_key)" "$sort_label" "$UI_RESET"
     fi
     ui_rule "─"
     if [[ "$selected_kind" == "new" ]]; then
@@ -573,7 +647,7 @@ render_menu() {
             "$UI_BOLD" "$UI_RESET" \
             "$(txt back_action)"
     else
-        printf '%sEnter%s %s  %s•%s  %sCtrl-R%s %s  %s•%s  %sCtrl-X%s %s  %s•%s  %sq/ESC/BS%s %s\n' \
+        printf '%sEnter%s %s  %s•%s  %sCtrl-R%s %s  %s•%s  %sCtrl-X%s %s  %s•%s  %sf%s %s  %s•%s  %ss%s %s  %s•%s  %sq/ESC/BS%s %s\n' \
             "$UI_BOLD" "$UI_RESET" \
             "$(txt open)" \
             "$UI_DIM" "$UI_RESET" \
@@ -584,20 +658,33 @@ render_menu() {
             "$(txt close)" \
             "$UI_DIM" "$UI_RESET" \
             "$UI_BOLD" "$UI_RESET" \
+            "$(txt favorite)" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
+            "$(txt sort_key)" \
+            "$UI_DIM" "$UI_RESET" \
+            "$UI_BOLD" "$UI_RESET" \
             "$(txt shell)"
     fi
     printf '\n'
 
     while IFS=$'\t' read -r kind name windows status; do
-        if [[ "$MENU_CONTEXT" == "root" && $index -eq 0 ]]; then
+        if [[ $index -eq 0 ]]; then
             printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
-        elif [[ "$MENU_CONTEXT" == "settings" && $index -eq 0 ]]; then
-            printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
-        elif [[ "$MENU_CONTEXT" == "language" && $index -eq 0 ]]; then
-            printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
-        elif [[ "$MENU_CONTEXT" == "root" && $index -eq 2 ]]; then
-            printf '\n'
-            printf '%s%s%s\n' "$UI_BOLD" "$(txt section_sessions)" "$UI_RESET"
+        elif [[ "$MENU_CONTEXT" == "root" && "$kind" == "session" ]]; then
+            if is_favorite "$name"; then
+                if (( _seen_fav == 0 )); then
+                    printf '\n'
+                    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_favorites)" "$UI_RESET"
+                    _seen_fav=1
+                fi
+            else
+                if (( _seen_nonfav == 0 )); then
+                    printf '\n'
+                    printf '%s%s%s\n' "$UI_BOLD" "$(txt section_sessions)" "$UI_RESET"
+                    _seen_nonfav=1
+                fi
+            fi
         fi
 
         if [[ "$kind" == "new" || "$kind" == "settings" || "$kind" == "language" || "$kind" == "back" || "$kind" == "lang_de" || "$kind" == "lang_en" || "$kind" == "lang_ru" || "$kind" == "back_settings" ]]; then
@@ -616,7 +703,7 @@ render_menu() {
             elif [[ "$kind" == "back" ]]; then
                 special_badge="$(ui_badge "$UI_DIM" "<")"
             else
-                special_badge="$(ui_badge "$UI_BLUE" "+")"
+                special_badge=""
             fi
             if (( index == SELECTED_INDEX )); then
                 item_prefix="${UI_BOLD}${UI_CYAN}›${UI_RESET}"
@@ -655,26 +742,42 @@ render_menu() {
                     status_display="[$status]"
                     ;;
             esac
+            _snum=$(( _snum + 1 ))
+            if   (( _snum <= 9 ));  then num_prefix="${_snum} "
+            elif (( _snum == 10 )); then num_prefix="0 "
+            else                         num_prefix="  "
+            fi
+            if is_favorite "$name"; then
+                row_name_color="${UI_BOLD}${UI_YELLOW}"
+            elif (( index == SELECTED_INDEX )); then
+                row_name_color="$UI_BOLD"
+            else
+                row_name_color="$UI_RESET"
+            fi
+            display_name="${num_prefix}${name}"
+            if (( ${#display_name} > name_width )); then
+                display_name="${display_name:0:$(( name_width - 1 ))}…"
+            fi
+            printf -v line_windows '%2s %s' "$windows" "$(txt windows)"
+            fill=$(( term_width - 4 - name_width - ${#line_windows} - 12 ))
+            (( fill < 1 )) && fill=1
+            printf -v fill_str '%*s' "$fill" ''
+            printf -v line_name "%-${name_width}s" "$display_name"
+            row_prefix="${UI_DIM}│${UI_RESET}"
             if (( index == SELECTED_INDEX )); then
                 marker="${UI_BOLD}${UI_CYAN}›${UI_RESET}"
-                row_prefix="${UI_DIM}│${UI_RESET}"
-                row_name_color="$UI_BOLD"
-                printf -v line_name '%-22s' "$name"
-                printf -v line_windows '%2s %s' "$windows" "$(txt windows)"
-                printf '%s %s %s%s%s  %s%s%s  %s\n' \
+                printf '%s %s %s%s%s%s%s%s%s  %s\n' \
                     "$marker" \
                     "$row_prefix" \
                     "$row_name_color" "$line_name" "$UI_RESET" \
+                    "$fill_str" \
                     "$UI_DIM" "$line_windows" "$UI_RESET" \
                     "$status_display"
             else
-                row_prefix="${UI_DIM}│${UI_RESET}"
-                row_name_color="$UI_RESET"
-                printf -v line_name '%-22s' "$name"
-                printf -v line_windows '%2s %s' "$windows" "$(txt windows)"
-                printf '  %s %s%s%s  %s%s%s  %s\n' \
+                printf '  %s %s%s%s%s%s%s%s  %s\n' \
                     "$row_prefix" \
                     "$row_name_color" "$line_name" "$UI_RESET" \
+                    "$fill_str" \
                     "$UI_DIM" "$line_windows" "$UI_RESET" \
                     "$status_display"
             fi
@@ -911,8 +1014,70 @@ popup_confirm() {
     return 1
 }
 
+load_favorites() {
+    FAVORITES=()
+    [[ -f "$CONFIG_DIR/favorites" ]] || return
+    while IFS= read -r _fav; do
+        [[ -n "$_fav" ]] && FAVORITES+=("$_fav")
+    done < "$CONFIG_DIR/favorites"
+}
+
+save_favorites() {
+    mkdir -p "$CONFIG_DIR"
+    if (( ${#FAVORITES[@]} == 0 )); then
+        rm -f "$CONFIG_DIR/favorites"
+        return
+    fi
+    printf '%s\n' "${FAVORITES[@]}" > "$CONFIG_DIR/favorites"
+}
+
+is_favorite() {
+    local _name="$1" _fav
+    for _fav in "${FAVORITES[@]+"${FAVORITES[@]}"}"; do
+        [[ "$_fav" == "$_name" ]] && return 0
+    done
+    return 1
+}
+
+toggle_favorite() {
+    local kind name windows status
+    IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
+    [[ "$kind" == "session" ]] || return
+
+    local _new=() _found=0 _fav
+    for _fav in "${FAVORITES[@]+"${FAVORITES[@]}"}"; do
+        if [[ "$_fav" == "$name" ]]; then
+            _found=1
+        else
+            _new+=("$_fav")
+        fi
+    done
+    (( _found == 0 )) && _new+=("$name")
+    FAVORITES=("${_new[@]+"${_new[@]}"}")
+    save_favorites
+}
+
 session_exists() {
     tmux has-session -t "=$1" 2>/dev/null
+}
+
+random_session_name() {
+    local adjectives=(cold dark swift bright deep vast lone pale wild bold
+                      dim lost far dead twin iron ash void calm faint
+                      blue dry raw hot dusk dawn)
+    local bodies=(nova comet pulsar quasar nebula vega lyra orion cygnus
+                  draco hydra ara crux vela auriga pavo lupus indus antlia)
+    local adj body name tries=0
+
+    while (( tries < 20 )); do
+        adj=${adjectives[$RANDOM % ${#adjectives[@]}]}
+        body=${bodies[$RANDOM % ${#bodies[@]}]}
+        name="$adj-$body"
+        tmux has-session -t "=$name" 2>/dev/null || { printf '%s' "$name"; return; }
+        tries=$(( tries + 1 ))
+    done
+
+    printf '%s-%d' "$name" "$RANDOM"
 }
 
 switch_to_session() {
@@ -1006,7 +1171,7 @@ handle_enter() {
         leave_language_menu
     elif [[ "$kind" == "new" ]]; then
         new_name=$(popup_prompt_line "$(txt prompt_new_title)" "$(txt prompt_new_name)" "") || return
-        new_name=${new_name:-$(txt default_main)}
+        new_name=${new_name:-$(random_session_name)}
         create_or_open_session "$new_name"
     else
         switch_to_session "$name"
@@ -1020,7 +1185,7 @@ handle_create_only() {
     [[ "$kind" == "new" ]] || return
 
     new_name=$(popup_prompt_line "$(txt prompt_new_title)" "$(txt prompt_new_name)" "") || return
-    new_name=${new_name:-$(txt default_main)}
+    new_name=${new_name:-$(random_session_name)}
     create_session_only "$new_name"
 }
 
@@ -1035,12 +1200,20 @@ handle_settings() {
     write_items
 }
 
+snapshot_last_attached() {
+    tmux list-sessions \
+        -F $'#{session_name}\t#{?session_last_attached,#{session_last_attached},0}' \
+        2>/dev/null > "$STATE_DIR/last_attached" || true
+}
+
 menu_mode() {
-    local key count current_target last_target
+    local key count current_target last_target _num_idx _sidx _lidx _kind _rest
 
     STATUS_MESSAGE=
     SELECTED_INDEX=1
     last_target=''
+    load_favorites
+    snapshot_last_attached
     write_menu_context
 
     enable_raw_mode
@@ -1130,6 +1303,51 @@ menu_mode() {
                     tmux detach-client -s "$CHOOSER_SESSION" >/dev/null 2>&1
                     exit 0
                 fi
+                ;;
+            f|F)
+                toggle_favorite
+                ;;
+            s|S)
+                case "$SORT_MODE" in
+                    name)    SORT_MODE="created" ;;
+                    created) SORT_MODE="attached" ;;
+                    *)       SORT_MODE="name" ;;
+                esac
+                save_config
+                ;;
+            0)
+                _num_idx=9
+                _sidx=0
+                _lidx=0
+                while IFS=$'\t' read -r _kind _rest; do
+                    if [[ "$_kind" == "session" ]]; then
+                        if (( _sidx == _num_idx )); then
+                            SELECTED_INDEX=$_lidx
+                            write_selected_target
+                            handle_enter
+                            break
+                        fi
+                        _sidx=$(( _sidx + 1 ))
+                    fi
+                    _lidx=$(( _lidx + 1 ))
+                done < "$STATE_DIR/sessions"
+                ;;
+            [1-9])
+                _num_idx=$(( $key - 1 ))
+                _sidx=0
+                _lidx=0
+                while IFS=$'\t' read -r _kind _rest; do
+                    if [[ "$_kind" == "session" ]]; then
+                        if (( _sidx == _num_idx )); then
+                            SELECTED_INDEX=$_lidx
+                            write_selected_target
+                            handle_enter
+                            break
+                        fi
+                        _sidx=$(( _sidx + 1 ))
+                    fi
+                    _lidx=$(( _lidx + 1 ))
+                done < "$STATE_DIR/sessions"
                 ;;
             k|K)
                 (( SELECTED_INDEX > 0 )) && SELECTED_INDEX=$((SELECTED_INDEX - 1))
@@ -1310,7 +1528,18 @@ main_mode() {
     script_path="$0"
     CHOOSER_SESSION="${CHOOSER_PREFIX}_$$"
 
-    tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
+    trap '
+        tmux unbind-key -n C-r >/dev/null 2>&1
+        tmux unbind-key -n C-x >/dev/null 2>&1
+        tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
+        rm -rf "$STATE_DIR"
+    ' EXIT HUP INT TERM
+
+    tmux list-sessions -F '#{session_name} #{session_attached}' 2>/dev/null \
+        | while IFS=' ' read -r _s _attached; do
+            [[ "$_s" == "${CHOOSER_PREFIX}"* ]] && (( _attached == 0 )) && \
+                tmux kill-session -t "=$_s" >/dev/null 2>&1
+          done
 
     tmux new-session -d -s "$CHOOSER_SESSION" -n chooser "$(build_mode_command __menu "$STATE_DIR")"
     tmux split-window -h -l 60% -t "$CHOOSER_SESSION":chooser "$(build_mode_command __preview_placeholder "$STATE_DIR")"
@@ -1325,11 +1554,6 @@ main_mode() {
         "send-keys C-x"
 
     tmux attach-session -t "$CHOOSER_SESSION"
-
-    tmux unbind-key -n C-r >/dev/null 2>&1
-    tmux unbind-key -n C-x >/dev/null 2>&1
-    tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
-    rm -rf "$STATE_DIR"
 }
 
 MODE="${1:-__main}"

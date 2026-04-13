@@ -208,6 +208,22 @@ txt() {
         en:shell_desc) printf 'return to normal shell' ;;
         ru:shell_desc) printf 'вернуться в обычную оболочку' ;;
 
+        de:favorite_desc) printf 'Session als Favorit markieren / entfernen' ;;
+        en:favorite_desc) printf 'mark / unmark session as favorite' ;;
+        ru:favorite_desc) printf 'добавить / убрать из избранного' ;;
+
+        de:sort_desc) printf 'Sortierung wechseln (Name / Erstellt / Letzter Attach)' ;;
+        en:sort_desc) printf 'cycle sort mode (name / created / last attach)' ;;
+        ru:sort_desc) printf 'сменить сортировку (имя / создана / последний attach)' ;;
+
+        de:number_desc) printf 'Session 1–9 / 0 direkt oeffnen' ;;
+        en:number_desc) printf 'open session 1–9 / 0 directly' ;;
+        ru:number_desc) printf 'открыть сессию 1–9 / 0 напрямую' ;;
+
+        de:random_name_hint) printf 'Name leer lassen fuer zufaelligen Namen' ;;
+        en:random_name_hint) printf 'leave name empty for a random name' ;;
+        ru:random_name_hint) printf 'оставьте имя пустым для случайного имени' ;;
+
         de:favorite) printf 'Favorit' ;;
         en:favorite) printf 'favorite' ;;
         ru:favorite) printf 'избранное' ;;
@@ -232,9 +248,9 @@ txt() {
         en:prompt_new_title) printf 'New Session' ;;
         ru:prompt_new_title) printf 'Новая сессия' ;;
 
-        de:prompt_new_name) printf 'Neuer Session-Name: ' ;;
-        en:prompt_new_name) printf 'New session name: ' ;;
-        ru:prompt_new_name) printf 'Новое имя сессии: ' ;;
+        de:prompt_new_name) printf 'Name [leer = zufaellig]: ' ;;
+        en:prompt_new_name) printf 'Name [empty = random]: ' ;;
+        ru:prompt_new_name) printf 'Имя [пусто = случайное]: ' ;;
 
         de:prompt_rename_name) printf 'Neuer Name: ' ;;
         en:prompt_rename_name) printf 'New name: ' ;;
@@ -1393,6 +1409,9 @@ preview_placeholder_mode() {
     printf '%s%s%s\n' "$UI_BOLD" "$(txt section_keys)" "$UI_RESET"
     printf '  %sCtrl-R%s   %s\n' "$UI_BOLD" "$UI_RESET" "$(txt rename_desc)"
     printf '  %sCtrl-X%s   %s\n' "$UI_BOLD" "$UI_RESET" "$(txt close_desc)"
+    printf '  %sf%s        %s\n' "$UI_BOLD" "$UI_RESET" "$(txt favorite_desc)"
+    printf '  %ss%s        %s\n' "$UI_BOLD" "$UI_RESET" "$(txt sort_desc)"
+    printf '  %s1-9 / 0%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt number_desc)"
     printf '  %sq / ESC%s  %s\n' "$UI_BOLD" "$UI_RESET" "$(txt shell_desc)"
 
     while :; do

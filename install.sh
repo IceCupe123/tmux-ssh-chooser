@@ -12,21 +12,27 @@ RAW_BIN_URL="${RAW_BIN_URL:-https://raw.githubusercontent.com/${REPO_OWNER}/${RE
 BEGIN_MARKER="# >>> tmux-ssh-chooser >>>"
 END_MARKER="# <<< tmux-ssh-chooser <<<"
 
-BASHRC_BLOCK=$(cat <<'EOF'
+build_bashrc_block() {
+    local target_bin_quoted
+
+    printf -v target_bin_quoted '%q' "$TARGET_BIN"
+
+    cat <<EOF
 # >>> tmux-ssh-chooser >>>
 # Auto-start tmux SSH chooser on interactive SSH login
 _tmux_ssh_chooser() {
-    [[ $- == *i* ]] || return
-    [[ -n "${SSH_CONNECTION:-}" ]] || return
-    [[ -z "${TMUX:-}" ]] || return
+    [[ \$- == *i* ]] || return
+    [[ -n "\${SSH_CONNECTION:-}" ]] || return
+    [[ -z "\${TMUX:-}" ]] || return
     command -v tmux >/dev/null 2>&1 || return
+
+    if [[ -x $target_bin_quoted ]]; then
+        $target_bin_quoted
+        return
+    fi
 
     if ! tmux list-sessions >/dev/null 2>&1; then
         exec tmux new -s main
-    fi
-
-    if [[ -x "$HOME/.local/bin/tmux-ssh-chooser" ]]; then
-        "$HOME/.local/bin/tmux-ssh-chooser"
     fi
 }
 
@@ -34,7 +40,7 @@ _tmux_ssh_chooser
 unset -f _tmux_ssh_chooser
 # <<< tmux-ssh-chooser <<<
 EOF
-)
+}
 
 download_bin() {
     if command -v curl >/dev/null 2>&1; then
@@ -52,12 +58,22 @@ download_bin() {
 }
 
 update_bashrc() {
-    local tmp_file
+    local tmp_file bashrc_block has_begin=0 has_end=0
 
     tmp_file=$(mktemp)
     touch "$BASHRC_FILE"
+    bashrc_block=$(build_bashrc_block)
 
-    if grep -Fq "$BEGIN_MARKER" "$BASHRC_FILE"; then
+    grep -Fq "$BEGIN_MARKER" "$BASHRC_FILE" && has_begin=1
+    grep -Fq "$END_MARKER" "$BASHRC_FILE" && has_end=1
+
+    if (( has_begin != has_end )); then
+        rm -f "$tmp_file"
+        printf 'Error: found only one tmux-ssh-chooser marker in %s; refusing to modify file.\n' "$BASHRC_FILE" >&2
+        exit 1
+    fi
+
+    if (( has_begin == 1 )); then
         awk -v begin="$BEGIN_MARKER" -v end="$END_MARKER" '
             $0 == begin { skip=1; next }
             $0 == end { skip=0; next }
@@ -67,13 +83,13 @@ update_bashrc() {
         while [[ -s "$tmp_file" ]] && [[ "$(tail -n 1 "$tmp_file")" == "" ]]; do
             sed -i '$d' "$tmp_file"
         done
-        printf '\n%s\n' "$BASHRC_BLOCK" >> "$tmp_file"
+        printf '\n%s\n' "$bashrc_block" >> "$tmp_file"
     else
         cat "$BASHRC_FILE" > "$tmp_file"
         if [[ -s "$tmp_file" ]] && [[ "$(tail -n 1 "$tmp_file")" != "" ]]; then
             printf '\n' >> "$tmp_file"
         fi
-        printf '\n%s\n' "$BASHRC_BLOCK" >> "$tmp_file"
+        printf '\n%s\n' "$bashrc_block" >> "$tmp_file"
     fi
 
     mv "$tmp_file" "$BASHRC_FILE"

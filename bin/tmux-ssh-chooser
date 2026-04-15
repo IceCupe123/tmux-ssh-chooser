@@ -224,6 +224,18 @@ txt() {
         en:random_name_hint) printf 'leave name empty for a random name' ;;
         ru:random_name_hint) printf 'оставьте имя пустым для случайного имени' ;;
 
+        de:confirm_hints) printf 'Enter bestaetigen  •  ←/→ waehlen  •  y/j ja  •  n/Esc nein' ;;
+        en:confirm_hints) printf 'Enter confirm  •  ←/→ select  •  y yes  •  n/Esc no' ;;
+        ru:confirm_hints) printf 'Enter подтвердить  •  ←/→ выбрать  •  y да  •  n/Esc нет' ;;
+
+        de:confirm_yes_line) printf '[Y] Ja    Session beenden' ;;
+        en:confirm_yes_line) printf '[Y] Yes   close session' ;;
+        ru:confirm_yes_line) printf '[Y] Да    закрыть' ;;
+
+        de:confirm_no_line) printf '[N] Nein  abbrechen' ;;
+        en:confirm_no_line) printf '[N] No    cancel' ;;
+        ru:confirm_no_line) printf '[N] Нет   отмена' ;;
+
         de:favorite) printf 'Favorit' ;;
         en:favorite) printf 'favorite' ;;
         ru:favorite) printf 'избранное' ;;
@@ -304,6 +316,26 @@ txt() {
         en:language_saved) printf 'Language saved.' ;;
         ru:language_saved) printf 'Язык сохранён.' ;;
 
+        de:create_failed_prefix) printf 'Session "%%s" konnte nicht erstellt werden' ;;
+        en:create_failed_prefix) printf 'Failed to create session "%%s"' ;;
+        ru:create_failed_prefix) printf 'Не удалось создать сессию "%%s"' ;;
+
+        de:rename_failed_prefix) printf 'Session "%%s" konnte nicht umbenannt werden' ;;
+        en:rename_failed_prefix) printf 'Failed to rename session "%%s"' ;;
+        ru:rename_failed_prefix) printf 'Не удалось переименовать сессию "%%s"' ;;
+
+        de:close_failed_prefix) printf 'Session "%%s" konnte nicht beendet werden' ;;
+        en:close_failed_prefix) printf 'Failed to close session "%%s"' ;;
+        ru:close_failed_prefix) printf 'Не удалось закрыть сессию "%%s"' ;;
+
+        de:invalid_name_prefix) printf 'Ungueltiger Session-Name "%%s"' ;;
+        en:invalid_name_prefix) printf 'Invalid session name "%%s"' ;;
+        ru:invalid_name_prefix) printf 'Недопустимое имя сессии "%%s"' ;;
+
+        de:invalid_name_reason) printf '"." und ":" sind nicht erlaubt' ;;
+        en:invalid_name_reason) printf '"." and ":" are not allowed' ;;
+        ru:invalid_name_reason) printf '"." и ":" не допускаются' ;;
+
         de:created_word) printf 'erstellt' ;;
         en:created_word) printf 'created' ;;
         ru:created_word) printf 'создана' ;;
@@ -337,6 +369,33 @@ status_no_sessions() { printf '%s "%s".' "$(txt no_sessions_prefix)" "$(txt entr
 confirm_close_text() { printf '%s "%s" %s?' "$(txt really_close_prefix)" "$1" "$(txt really_close_suffix)"; }
 rename_title() { printf '%s: %s' "$(txt rename_title_prefix)" "$1"; }
 language_display() { printf '%s' "$CHOOSER_LANG"; }
+
+status_with_reason() {
+    local prefix_key="$1"
+    local session_name="$2"
+    local reason="${3:-}"
+    local fmt msg
+
+    fmt=$(txt "$prefix_key")
+    # shellcheck disable=SC2059
+    printf -v msg "$fmt" "$session_name"
+
+    if [[ -n "$reason" ]]; then
+        printf '%s: %s.' "$msg" "$reason"
+    else
+        printf '%s.' "$msg"
+    fi
+}
+
+status_create_failed() { status_with_reason create_failed_prefix "$1" "${2:-}"; }
+status_rename_failed() { status_with_reason rename_failed_prefix "$1" "${2:-}"; }
+status_close_failed() { status_with_reason close_failed_prefix "$1" "${2:-}"; }
+status_invalid_name() { status_with_reason invalid_name_prefix "$1" "$(txt invalid_name_reason)"; }
+
+is_valid_session_name() {
+    local name="$1"
+    [[ -n "$name" && ! "$name" =~ [:.] ]]
+}
 
 read_menu_context() {
     if [[ -f "$STATE_DIR/context" ]]; then
@@ -378,12 +437,29 @@ session_display_status() {
     local session_name="$1"
 
     if tmux list-clients -t "=$session_name" -F '#{client_flags}' 2>/dev/null | \
-        awk '!/read-only/ || !/ignore-size/ { found=1 } END { exit(found ? 0 : 1) }'
+        awk '!/read-only/ { found=1 } END { exit(found ? 0 : 1) }'
     then
         printf 'attached'
     else
         printf 'detached'
     fi
+}
+
+sort_sessions() {
+    case "${SORT_MODE:-name}" in
+        created)
+            LC_ALL=C sort -t$'\t' -k1 -rn
+            ;;
+        attached)
+            LC_ALL=C awk -F$'\t' -v OFS=$'\t' -v snap="$STATE_DIR/last_attached" '
+                BEGIN { while ((getline line < snap) > 0) { split(line, a, FS); ts[a[1]] = a[2] } }
+                { $2 = (ts[$3] != "" ? ts[$3] : "0"); print }
+            ' | LC_ALL=C sort -t$'\t' -k2 -rn
+            ;;
+        *)
+            LC_ALL=C sort -t$'\t' -k3
+            ;;
+    esac
 }
 
 list_items() {
@@ -408,23 +484,6 @@ list_items() {
     printf 'settings\t%s\t\t\n' "$(txt entry_settings)"
     printf 'new\t%s\t\t\n' "$(txt entry_new)"
 
-    _sort_sessions() {
-        case "${SORT_MODE:-name}" in
-            created)
-                LC_ALL=C sort -t$'\t' -k1 -rn
-                ;;
-            attached)
-                LC_ALL=C awk -F$'\t' -v OFS=$'\t' -v snap="$STATE_DIR/last_attached" '
-                    BEGIN { while ((getline line < snap) > 0) { split(line, a, FS); ts[a[1]] = a[2] } }
-                    { $2 = (ts[$3] != "" ? ts[$3] : "0"); print }
-                ' | LC_ALL=C sort -t$'\t' -k2 -rn
-                ;;
-            *)
-                LC_ALL=C sort -t$'\t' -k3
-                ;;
-        esac
-    }
-
     local fav_lines="" nonfav_lines=""
     local _c _a name windows status
     while IFS=$'\t' read -r _c _a name windows; do
@@ -438,7 +497,7 @@ list_items() {
         fi
     done < <(tmux list-sessions \
         -F $'#{session_created}\t#{?session_last_attached,#{session_last_attached},0}\t#{session_name}\t#{session_windows}' \
-        2>/dev/null | _sort_sessions)
+        2>/dev/null | sort_sessions)
 
     printf '%s' "$fav_lines"
     printf '%s' "$nonfav_lines"
@@ -580,11 +639,10 @@ render_menu() {
     local index=0
     local kind name windows status selected_kind
     local status_display marker line_name line_windows special_badge
-    local row_prefix row_name_color num_prefix _snum=0 _seen_fav=0 _seen_nonfav=0
+    local row_prefix row_name_color num_prefix _snum=0 _seen_fav=0 _seen_nonfav=0 _is_fav
     local status_prefix display_name term_width name_width fill fill_str sort_label
     local item_prefix
 
-    ui_init
     read_menu_context
     IFS=$'\t' read -r selected_kind _ <<< "$(selected_line)"
     term_width=$(tput cols 2>/dev/null || printf '80')
@@ -685,10 +743,13 @@ render_menu() {
     printf '\n'
 
     while IFS=$'\t' read -r kind name windows status; do
+        _is_fav=0
+        [[ "$kind" == "session" ]] && is_favorite "$name" && _is_fav=1
+
         if [[ $index -eq 0 ]]; then
             printf '%s%s%s\n' "$UI_BOLD" "$(txt section_action)" "$UI_RESET"
         elif [[ "$MENU_CONTEXT" == "root" && "$kind" == "session" ]]; then
-            if is_favorite "$name"; then
+            if (( _is_fav )); then
                 if (( _seen_fav == 0 )); then
                     printf '\n'
                     printf '%s%s%s\n' "$UI_BOLD" "$(txt section_favorites)" "$UI_RESET"
@@ -763,7 +824,7 @@ render_menu() {
             elif (( _snum == 10 )); then num_prefix="0 "
             else                         num_prefix="  "
             fi
-            if is_favorite "$name"; then
+            if (( _is_fav )); then
                 row_name_color="${UI_BOLD}${UI_YELLOW}"
             elif (( index == SELECTED_INDEX )); then
                 row_name_color="$UI_BOLD"
@@ -775,6 +836,7 @@ render_menu() {
                 display_name="${display_name:0:$(( name_width - 1 ))}…"
             fi
             printf -v line_windows '%2s %s' "$windows" "$(txt windows)"
+            # 12 = 2 spaces before status + 10 visible chars of "[attached]"/"[detached]"
             fill=$(( term_width - 4 - name_width - ${#line_windows} - 12 ))
             (( fill < 1 )) && fill=1
             printf -v fill_str '%*s' "$fill" ''
@@ -924,6 +986,10 @@ popup_confirm() {
         -T "$title" \
         -e CONFIRM_TEXT="$prompt" \
         -e CONFIRM_RESULT_FILE="$result_file" \
+        -e CONFIRM_TITLE="$title" \
+        -e CONFIRM_HINTS="$(txt confirm_hints)" \
+        -e CONFIRM_YES_LINE="$(txt confirm_yes_line)" \
+        -e CONFIRM_NO_LINE="$(txt confirm_no_line)" \
         "/bin/bash -lc '
             read_key() {
                 local key next
@@ -953,16 +1019,9 @@ popup_confirm() {
                 yellow=\$(tput setaf 3)
 
                 clear
-                printf \"%s%sSESSION SCHLIESSEN%s\n\" \"\$bold\" \"\$cyan\" \"\$reset\"
+                printf \"%s%s%s%s\n\" \"\$bold\" \"\$cyan\" \"\$CONFIRM_TITLE\" \"\$reset\"
                 printf \"%*s\n\" 56 \"\" | tr \" \" \"-\"
-                printf \"%sEnter%s bestaetigen  %s•%s  %s←/→/↑/↓%s waehlen  %s•%s  %sy/j%s ja  %s•%s  %sn/Esc%s nein\n\n\" \
-                    \"\$bold\" \"\$reset\" \
-                    \"\$dim\" \"\$reset\" \
-                    \"\$bold\" \"\$reset\" \
-                    \"\$dim\" \"\$reset\" \
-                    \"\$bold\" \"\$reset\" \
-                    \"\$dim\" \"\$reset\" \
-                    \"\$bold\" \"\$reset\"
+                printf \"%s%s%s\n\n\" \"\$bold\" \"\$CONFIRM_HINTS\" \"\$reset\"
                 printf \"%s\n\n\" \"\$CONFIRM_TEXT\"
 
                 if [[ \"\$selected\" == \"yes\" ]]; then
@@ -977,8 +1036,8 @@ popup_confirm() {
                     no_style=\"\${bold}\${yellow}\"
                 fi
 
-                printf \"%s  %s[Y] Yes%s      session beenden\n\" \"\$yes_marker\" \"\$yes_style\" \"\$reset\"
-                printf \"%s  %s[N] No%s       abbrechen\n\" \"\$no_marker\" \"\$no_style\" \"\$reset\"
+                printf \"%s  %s%s%s\n\" \"\$yes_marker\" \"\$yes_style\" \"\$CONFIRM_YES_LINE\" \"\$reset\"
+                printf \"%s  %s%s%s\n\" \"\$no_marker\" \"\$no_style\" \"\$CONFIRM_NO_LINE\" \"\$reset\"
             }
 
             selected=no
@@ -1073,6 +1132,25 @@ toggle_favorite() {
     save_favorites
 }
 
+rename_favorite() {
+    local old_name="$1"
+    local new_name="$2"
+    local _fav _updated=()
+
+    is_favorite "$old_name" || return
+
+    for _fav in "${FAVORITES[@]+"${FAVORITES[@]}"}"; do
+        if [[ "$_fav" == "$old_name" ]]; then
+            _updated+=("$new_name")
+        else
+            _updated+=("$_fav")
+        fi
+    done
+
+    FAVORITES=("${_updated[@]+"${_updated[@]}"}")
+    save_favorites
+}
+
 session_exists() {
     tmux has-session -t "=$1" 2>/dev/null
 }
@@ -1106,29 +1184,47 @@ switch_to_session() {
 
 create_or_open_session() {
     local target="$1"
+    local err
+
+    if ! is_valid_session_name "$target"; then
+        STATUS_MESSAGE="$(status_invalid_name "$target")"
+        return 1
+    fi
 
     if session_exists "$target"; then
         switch_to_session "$target"
     else
-        tmux new-session -d -s "$target" >/dev/null 2>&1
+        if ! err=$(tmux new-session -d -s "$target" 2>&1 >/dev/null); then
+            STATUS_MESSAGE="$(status_create_failed "$target" "$err")"
+            return 1
+        fi
         switch_to_session "$target"
     fi
 }
 
 create_session_only() {
     local target="$1"
+    local err
+
+    if ! is_valid_session_name "$target"; then
+        STATUS_MESSAGE="$(status_invalid_name "$target")"
+        return 1
+    fi
 
     if session_exists "$target"; then
         STATUS_MESSAGE="$(status_exists "$target")"
-        return
+        return 1
     fi
 
-    tmux new-session -d -s "$target" >/dev/null 2>&1
+    if ! err=$(tmux new-session -d -s "$target" 2>&1 >/dev/null); then
+        STATUS_MESSAGE="$(status_create_failed "$target" "$err")"
+        return 1
+    fi
     STATUS_MESSAGE="$(status_created "$target")"
 }
 
 rename_selected_session() {
-    local kind name windows status new_name
+    local kind name windows status new_name err
 
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
     [[ "$kind" == "session" ]] || return
@@ -1141,17 +1237,26 @@ rename_selected_session() {
         return
     fi
 
-    if session_exists "$new_name"; then
-        STATUS_MESSAGE="$(status_exists "$new_name")"
-        return
+    if ! is_valid_session_name "$new_name"; then
+        STATUS_MESSAGE="$(status_invalid_name "$new_name")"
+        return 1
     fi
 
-    tmux rename-session -t "=$name" "$new_name"
+    if session_exists "$new_name"; then
+        STATUS_MESSAGE="$(status_exists "$new_name")"
+        return 1
+    fi
+
+    if ! err=$(tmux rename-session -t "=$name" "$new_name" 2>&1 >/dev/null); then
+        STATUS_MESSAGE="$(status_rename_failed "$name" "$err")"
+        return 1
+    fi
+    rename_favorite "$name" "$new_name"
     STATUS_MESSAGE=
 }
 
 kill_selected_session() {
-    local kind name windows status
+    local kind name windows status err
 
     IFS=$'\t' read -r kind name windows status <<< "$(selected_line)"
     [[ "$kind" == "session" ]] || return
@@ -1162,7 +1267,10 @@ kill_selected_session() {
     fi
 
     detach_preview_pane
-    tmux kill-session -t "=$name"
+    if ! err=$(tmux kill-session -t "=$name" 2>&1 >/dev/null); then
+        STATUS_MESSAGE="$(status_close_failed "$name" "$err")"
+        return 1
+    fi
     STATUS_MESSAGE=
 }
 
@@ -1231,6 +1339,7 @@ menu_mode() {
     load_favorites
     snapshot_last_attached
     write_menu_context
+    ui_init
 
     enable_raw_mode
     trap 'disable_raw_mode' EXIT
@@ -1251,7 +1360,6 @@ menu_mode() {
             update_preview_pane "$current_target"
             last_target="$current_target"
         fi
-        last_target="$current_target"
         render_menu
 
         key=$(read_key)
@@ -1540,16 +1648,11 @@ preview_session_mode() {
 }
 
 main_mode() {
-    local script_path
-
     load_config
     STATE_DIR=$(mktemp -d /tmp/tmux-ssh-chooser.XXXXXX)
-    script_path="$0"
     CHOOSER_SESSION="${CHOOSER_PREFIX}_$$"
 
     trap '
-        tmux unbind-key -n C-r >/dev/null 2>&1
-        tmux unbind-key -n C-x >/dev/null 2>&1
         tmux kill-session -t "$CHOOSER_SESSION" >/dev/null 2>&1
         rm -rf "$STATE_DIR"
     ' EXIT HUP INT TERM
@@ -1565,13 +1668,6 @@ main_mode() {
     tmux set-option -t "$CHOOSER_SESSION" status off >/dev/null 2>&1
     tmux select-layout -t "$CHOOSER_SESSION":chooser even-horizontal >/dev/null 2>&1
     tmux select-pane -t "$CHOOSER_SESSION":chooser.0 >/dev/null 2>&1
-    tmux bind-key -n C-r if-shell -F '#{m:^__ssh_chooser,#{session_name}}' \
-        "send-keys -t '#{session_name}:chooser.0' C-r" \
-        "send-keys C-r"
-    tmux bind-key -n C-x if-shell -F '#{m:^__ssh_chooser,#{session_name}}' \
-        "send-keys -t '#{session_name}:chooser.0' C-x" \
-        "send-keys C-x"
-
     tmux attach-session -t "$CHOOSER_SESSION"
 }
 

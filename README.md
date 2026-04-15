@@ -37,6 +37,8 @@ After installation, open a new SSH session or reload your shell with:
 source ~/.bashrc
 ```
 
+If you integrate the hook manually or install the binary to a custom location, you can point the shell hook at it with `TMUX_SSH_CHOOSER_BIN=/path/to/tmux-ssh-chooser`.
+
 ## Requirements
 
 - Bash
@@ -61,6 +63,6 @@ source ~/.bashrc
 ## Notes
 
 - If you are already inside tmux, the chooser will not start again.
-- If no tmux session exists, a new session with a random name is created immediately.
+- If no tmux session exists yet, the chooser still opens and lets you create the first session.
 - Favorites are stored in `~/.config/tmux-ssh-chooser/favorites`.
 - Settings are stored in `~/.config/tmux-ssh-chooser/config`.
